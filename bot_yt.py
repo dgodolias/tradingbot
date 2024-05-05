@@ -113,30 +113,37 @@ def get_qty_precision(symbol):
 
 # Open new order with the last price, and set TP and SL:
 def open_order(symbol, side):
+    fee_rate = 0.0007  # Adjust this to your actual fee rate
     price = float(client.ticker_price(symbol)['price'])
     qty_precision = get_qty_precision(symbol)
     price_precision = get_price_precision(symbol)
-    print("normal quantity:", volume/(price*1.0007))
-    qty = math.floor(volume/(price*1.0007) * 10**qty_precision) / 10**qty_precision
+    direction = ''
+
+    print("normal quantity:", volume/(price))
+    if side == 'buy':
+        price = price * (1 + fee_rate)
+        qty = math.floor((volume/(price) * 10**qty_precision)/2) / 10**qty_precision
+    elif side == 'sell':  # shorting
+        price = price * (1 - fee_rate)
+        qty = math.floor((volume/(price) * 10**qty_precision)/2) / 10**qty_precision
     print("rounded down quantity:", qty)
     order_id = None
     filled_qty = 0
     if side == 'buy':
         try:
-            required_margin = (price*1.0007) * qty
+            required_margin = (price) * qty
             print("Required margin for the trade: ", required_margin)
-            resp1 = client.new_order(symbol=symbol, side='BUY', type='MARKET', quantity=qty)
+            resp1 = client.new_order(symbol=symbol, side=SIDE_BUY, type=FUTURE_ORDER_TYPE_MARKET,quantity=qty)
             print(symbol, side, "placing order")
             print(resp1)
+            direction = 'up'
             order_id = resp1['orderId']
             filled_qty = float(resp1['executedQty'])
-            sleep(2)
             sl_price = round(price - price*sl, price_precision)
-            resp2 = client.new_order(symbol=symbol, side='SELL', type='STOP_MARKET', quantity=filled_qty, timeInForce='GTC', stopPrice=sl_price)
+            resp2 = client.new_order(symbol=symbol, side='SELL', type='STOP_MARKET', quantity=qty, timeInForce='GTC', stopPrice=sl_price)
             print(resp2)
-            sleep(2)
             tp_price = round(price + price * tp, price_precision)
-            resp3 = client.new_order(symbol=symbol, side='SELL', type='TAKE_PROFIT_MARKET', quantity=filled_qty, timeInForce='GTC',
+            resp3 = client.new_order(symbol=symbol, side='SELL', type='TAKE_PROFIT_MARKET', quantity=qty, timeInForce='GTC',
                                      stopPrice=tp_price)
             print(resp3)
         except ClientError as error:
@@ -151,19 +158,17 @@ def open_order(symbol, side):
 
     if side == 'sell':
         try:
-            resp1 = client.new_order(symbol=symbol, side='SELL', type='MARKET', quantity=qty)
+            required_margin = (price) * qty
+            print("Required margin for the trade: ", required_margin)
+            resp1 = client.new_order(symbol=symbol, side=SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET,quantity=qty)
             print(symbol, side, "placing order")
             print(resp1)
-            order_id = resp1['orderId']
-            filled_qty = float(resp1['executedQty'])
-            print("Filled qty: ", filled_qty)
-            sleep(2)
+            direction = 'down'
             sl_price = round(price + price*sl, price_precision)
-            resp2 = client.new_order(symbol=symbol, side='BUY', type='STOP_MARKET', quantity=filled_qty, timeInForce='GTC', stopPrice=sl_price)
+            resp2 = client.new_order(symbol=symbol, side='BUY', type='STOP_MARKET', quantity=qty, timeInForce='GTC', stopPrice=sl_price)
             print(resp2)
-            sleep(2)
             tp_price = round(price - price * tp, price_precision)
-            resp3 = client.new_order(symbol=symbol, side='BUY', type='TAKE_PROFIT_MARKET', quantity=filled_qty, timeInForce='GTC',
+            resp3 = client.new_order(symbol=symbol, side='BUY', type='TAKE_PROFIT_MARKET', quantity=qty, timeInForce='GTC',
                                      stopPrice=tp_price)
             print(resp3)
         except ClientError as error:
@@ -172,7 +177,11 @@ def open_order(symbol, side):
                     error.status_code, error.error_code, error.error_message
                 )
             )
-    return (order_id,filled_qty==qty)
+        # Print the margin
+        account_info = client.account()
+        print("Available margin: ", account_info['availableBalance'])
+    
+    return (order_id, direction)
 
 def close_position(symbol):
     try:
@@ -224,12 +233,17 @@ def str_signal(symbol):
     current_time = datetime.datetime.now()
     print(current_time)
     difference = current_time - previous_close_time
-    print(difference.total_seconds())
+    difference = difference.total_seconds()
     # Check if the previous candle has closed and we're within a 10-second window
-    if (difference) <= datetime.timedelta(seconds=10):
-        if klines_data['Close'].iloc[-1] > float(client.ticker_price(symbol)['price']):
+    print(difference <= 15)
+    if (difference) <= 15:
+        print(klines_data['Close'].iloc[-1])
+        print(float(client.ticker_price(symbol)['price']))
+        if direction == 'down':
+            print("up")
             return 'up'
-        elif klines['Close'].iloc[-1] < float(client.ticker_price(symbol)['price']):
+        else:
+            print("down")
             return 'down'
     else:
         return 'none'
@@ -237,22 +251,24 @@ def str_signal(symbol):
 
 def handle_signal(symbol, signal, type, leverage):
     print(f'Found {signal.upper()} signal for {symbol}')
-    close_position(symbol)
     close_open_orders(symbol)
+    close_position(symbol)
+
     set_mode(symbol, type)
     set_leverage(symbol, leverage)
     print(f'Placing order for {symbol}')
     order = open_order(symbol, signal)
-    #order_id = order[0]
-    #order_filled = order[1]
+    order_id = order[0]
+    direction = order[1]
 
-    return order
+    return order,direction
 
 close_open_orders(symbol)
+close_position(symbol)
+
 while True:
     # we need to get balance to check if the connection is good, or you have all the needed permissions
     balance = get_balance_usdt()
-    sleep(1)
     if balance == None:
         print('Cant connect to API. Check IP, restrictions or wait some time')
     if balance != None:
@@ -261,11 +277,8 @@ while True:
         signal = str_signal(symbol)
 
         if signal == 'up' and (direction == 'down' or direction == ''):
-            order = handle_signal(symbol, 'buy', type, leverage)
-            direction = 'up'
+            order,direction = handle_signal(symbol, 'buy', type, leverage)
         elif signal == 'down' and (direction == 'up' or direction == ''):
-            order = handle_signal(symbol, 'sell', type, leverage)
-            direction = 'down'
-                    # break
+            order,direction = handle_signal(symbol, 'sell', type, leverage)
     print('Waiting 3 min')
-    sleep(5)
+    sleep(1)
