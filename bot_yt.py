@@ -3,8 +3,9 @@ from binance.um_futures import UMFutures
 import talib as ta
 import pandas as pd
 from time import sleep
+import datetime
 from binance.error import ClientError
-from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+from binance.enums import *
 
 client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
 client.base_url = 'https://testnet.binancefuture.com'
@@ -53,6 +54,7 @@ def klines(symbol):
         resp.columns = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume']
         resp = resp.set_index('Time')
         resp.index = pd.to_datetime(resp.index, unit = 'ms')
+        resp.index = resp.index.tz_localize('UTC').tz_convert('EET')  # Convert to Athens time
         resp = resp.astype(float)
         return resp
     except ClientError as error:
@@ -214,11 +216,24 @@ def close_open_orders(symbol):
 # Strategy. Can use any other:
 
 def str_signal(symbol):
-
-    if direction in ["", "up"]:
-        return 'up'
+    # Get the latest kline data
+    klines_data = klines(symbol)
+    previous_close_time_str = klines_data.index[-1].strftime("%Y-%m-%d %H:%M:%S")  # The closing time is at index -2
+    previous_close_time = datetime.datetime.strptime(previous_close_time_str, "%Y-%m-%d %H:%M:%S")
+    print(previous_close_time)
+    current_time = datetime.datetime.now()
+    print(current_time)
+    difference = current_time - previous_close_time
+    print(difference.total_seconds())
+    # Check if the previous candle has closed and we're within a 10-second window
+    if (difference) <= datetime.timedelta(seconds=10):
+        if klines_data['Close'].iloc[-1] > float(client.ticker_price(symbol)['price']):
+            return 'up'
+        elif klines['Close'].iloc[-1] < float(client.ticker_price(symbol)['price']):
+            return 'down'
     else:
-        return 'down'
+        return 'none'
+
 
 def handle_signal(symbol, signal, type, leverage):
     print(f'Found {signal.upper()} signal for {symbol}')
@@ -233,7 +248,7 @@ def handle_signal(symbol, signal, type, leverage):
 
     return order
 
-
+close_open_orders(symbol)
 while True:
     # we need to get balance to check if the connection is good, or you have all the needed permissions
     balance = get_balance_usdt()
@@ -253,4 +268,4 @@ while True:
             direction = 'down'
                     # break
     print('Waiting 3 min')
-    sleep(10)
+    sleep(5)
