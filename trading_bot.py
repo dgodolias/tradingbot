@@ -268,6 +268,7 @@ def trade(leverage, type, symbol, direction,timeframe):
     pause_(klines(symbol,timeframe).index[-1].timestamp(),timeframe* 60)
 
     while True:
+        if not position_opened(symbol): direction = ''
         # we need to get balance to check if the connection is good, or you have all the needed permissions
         balance = get_balance_usdt()
         if balance == None:
@@ -303,11 +304,7 @@ leverage = 1
 type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
 symbol = 'BTCUSDT'
 direction = ''
-timeframe = 15 #in minutes
+timeframe = 1 #in minutes
 
-#trade(leverage, type, symbol, direction, timeframe)
+trade(leverage, type, symbol, direction, timeframe)
 
-while True:
-    klines_ = klines(symbol, timeframe)
-    row = klines_.iloc[-1]
-    print(row.name, datetime.datetime.now().second)
