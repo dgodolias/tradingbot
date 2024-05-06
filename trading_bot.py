@@ -7,7 +7,6 @@ from time import sleep
 from binance.error import ClientError
 from binance.enums import *
 import pause
-import os
 
 
 def get_fee_rate():
@@ -288,10 +287,8 @@ def trade(leverage, type, symbol, direction,timeframe):
                 pause_(klines_.index[-1].timestamp(),timeframe * 60)
 
 
-key = os.getenv('BINANCE_KEY')
-secret = os.getenv('BINANCE_SECRET')
 
-client = UMFutures(key=key, secret=secret)
+client = UMFutures(key='b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
 client.base_url = 'https://testnet.binancefuture.com'
 
 # 0.012 means +1.2%, 0.009 is -0.9%
