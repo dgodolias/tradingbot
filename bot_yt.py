@@ -1,10 +1,13 @@
+import datetime
 import math
+import time
 from binance.um_futures import UMFutures
 import talib
 import pandas as pd
 from time import sleep
 from binance.error import ClientError
 from binance.enums import *
+import pause
 
 
 def get_fee_rate():
@@ -23,9 +26,9 @@ def get_balance_usdt():
         )
 
 
-def klines(symbol):
+def klines(symbol,timeframe):
     try:
-        resp = pd.DataFrame(client.klines(symbol, '1m', limit=100))
+        resp = pd.DataFrame(client.klines(symbol, str(timeframe)+'m', limit=100))
         resp = resp.iloc[:,:6]
         resp.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
         resp = resp.set_index('time')
@@ -94,6 +97,20 @@ def previous_qty(symbol, qty):
     previous_qty = ((qty // step) * step) - step
     return previous_qty
 
+def position_opened(symbol):
+    try:
+        position_info = client.get_position_risk(symbol=symbol)
+        if position_info:
+            position_info = position_info[0]
+            return float(position_info['positionAmt']) != 0
+        else:
+            return False
+    except ClientError as error:
+        print(
+            "Found error. status: {}, error code: {}, error message: {}".format(
+                error.status_code, error.error_code, error.error_message
+            )
+        )
 
 def open_order(symbol, side):
     fee_rate = get_fee_rate()
@@ -116,11 +133,11 @@ def open_order(symbol, side):
     while True:
         try:
             print("Required margin for the trade: ", price * qty)
-            resp1 = client.new_order(symbol=symbol, side=SIDE_BUY if side == 'buy' else SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET, quantity=qty)
+            client.new_order(symbol=symbol, side=SIDE_BUY if side == 'buy' else SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET, quantity=qty)
             print(symbol, side, "placing order")
-            print(resp1)
-            resp2 = client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
-            print(resp2)
+            client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
+            if not position_opened(symbol):
+                raise ClientError(status_code=400, error_code='PositionError', error_message='Position not opened')            
             break
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
@@ -227,12 +244,28 @@ def handle_signal(symbol, signal, leverage):
 
     return direction
 
-def trade(leverage, type, symbol, direction):
+def klines_delay():
+    # Get the current second
+    current_second = datetime.datetime.now().second
+    print('Current second:', current_second)
+    # If we're in the [1, 10] range, sleep until the 10th second
+    if 1 <= current_second <= 15:
+        sleep_time = 15 - current_second
+        sleep(sleep_time)
+
+def pause_(previous_unix, step):
+
+    print('Waiting for the next candle')
+    pause.until(previous_unix + step)
+    print('Next candle is here!')
+
+def trade(leverage, type, symbol, direction,timeframe):
 
     close_open_orders(symbol)
     close_position(symbol)
     set_mode(symbol, type)
 
+    pause_(klines(symbol,timeframe).index[-1].timestamp(),timeframe* 60)
 
     while True:
         # we need to get balance to check if the connection is good, or you have all the needed permissions
@@ -242,18 +275,22 @@ def trade(leverage, type, symbol, direction):
         if balance != None:
             print("My balance is: ", balance, " USDT")
 
-            df = calculate_indicators(klines(symbol).tail(20))
-            row = df.iloc[-2]
-
+            klines_delay()
+            klines_ = klines(symbol,timeframe)
+            df = calculate_indicators(klines_)
+            row = df.iloc[-1]
+            print(row.name)
             signal = str_signal(row)
 
             if signal == 'up' and (direction == 'down' or direction == ''):
                 direction = handle_signal(symbol, 'buy',  leverage)
-                sleep(30)
+                pause_(klines_.index[-1].timestamp(), timeframe * 60)
             elif signal == 'down' and (direction == 'up' or direction == ''):
                 direction = handle_signal(symbol, 'sell', leverage)
-                sleep(30)
-            sleep(1)
+                pause_(klines_.index[-1].timestamp(),timeframe * 60)
+            else:
+                print('No signal found')
+                pause_(klines_.index[-1].timestamp(),timeframe * 60)
 
 client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
 client.base_url = 'https://testnet.binancefuture.com'
@@ -266,5 +303,11 @@ leverage = 1
 type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
 symbol = 'BTCUSDT'
 direction = ''
+timeframe = 15 #in minutes
 
-trade(leverage, type, symbol, direction)
+#trade(leverage, type, symbol, direction, timeframe)
+
+while True:
+    klines_ = klines(symbol, timeframe)
+    row = klines_.iloc[-1]
+    print(row.name, datetime.datetime.now().second)
