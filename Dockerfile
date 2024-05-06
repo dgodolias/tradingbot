@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -v pandas
 RUN pip install --no-cache-dir -v TA-Lib
 RUN pip install --no-cache-dir -v pause
 RUN pip install --no-cache-dir -v python-binance
+RUN pip install --no-cache-dir -v requests
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
