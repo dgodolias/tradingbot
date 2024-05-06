@@ -304,6 +304,7 @@ type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
 symbol = 'BTCUSDT'
 direction = ''
 timeframe = 1 #in minutes
-
+print('Starting the bot')
+print('---------------------------------')
 trade(leverage, type, symbol, direction, timeframe)
 
