@@ -76,12 +76,12 @@ def set_mode(symbol, type):
 
 # Price precision. BTC has 1, XRP has 4
 def get_price_precision():
-    1
+    return 1
 
 
 # Amount precision. BTC has 3, XRP has 1
 def get_qty_precision():
-    3
+    return 3
 
 # Get the previous quantity to avoid errors with the precision
 def previous_qty(symbol, qty):
