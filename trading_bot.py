@@ -135,6 +135,8 @@ def open_order(symbol, side):
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
             qty = previous_qty(symbol, qty)
+            if qty <= 0:
+                break
 
     print("Available margin: ", client.account()['availableBalance'])
     return direction
@@ -257,7 +259,8 @@ def trade(leverage, type, symbol, direction,timeframe):
     close_open_orders(symbol)
     close_position(symbol)
     set_mode(symbol, type)
-
+    
+    sleep(5)
     pause_(klines(symbol,timeframe).index[-1].timestamp(),timeframe* 60)
 
     while True:
