@@ -7,8 +7,11 @@ WORKDIR /app
 # Add the current directory contents into the container at /app
 ADD . /app
 
-# Install the necessary packages
-RUN pip install --no-cache-dir binance pandas talib pause
+# Install the necessary packages one at a time with verbose output
+RUN pip install --no-cache-dir -v binance
+RUN pip install --no-cache-dir -v pandas
+RUN pip install --no-cache-dir -v talib
+RUN pip install --no-cache-dir -v pause
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
