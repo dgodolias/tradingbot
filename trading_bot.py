@@ -1,6 +1,5 @@
 import datetime
 import math
-import time
 from binance.um_futures import UMFutures
 import talib
 import pandas as pd
