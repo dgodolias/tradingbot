@@ -300,11 +300,7 @@ direction = ''
 timeframe = 1 #in minutes
 print('Starting the bot')
 print('---------------------------------')
-#trade(leverage, type, symbol, direction, timeframe)
+trade(leverage, type, symbol, direction, timeframe)
 
-resp = client.exchange_info()['symbols']
-for elem in resp:
-    if elem['symbol'] == symbol:
-        print(elem)
 
 
