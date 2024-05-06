@@ -3,26 +3,12 @@ from binance.um_futures import UMFutures
 import talib
 import pandas as pd
 from time import sleep
-import datetime
 from binance.error import ClientError
 from binance.enums import *
 
-client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
-client.base_url = 'https://testnet.binancefuture.com'
-
-# 0.012 means +1.2%, 0.009 is -0.9%
-
-sl = 0.4
-leverage = 1
-type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
-qty = 1  # Amount of concurrent opened positions
-orders = 0
-symbol = 'BTCUSDT'
-direction = ''
-fee_rate = 0.0007  # Adjust this to your actual fee rate
 
 def get_fee_rate():
-    return fee_rate
+    return 0.0007
 # getting your futures balance in USDT
 def get_balance_usdt():
     try:
@@ -37,16 +23,12 @@ def get_balance_usdt():
         )
 
 
-volume = get_balance_usdt()
-
-
-# Getting candles for the needed symbol, its a dataframe with 'Time', 'Open', 'High', 'Low', 'Close', 'Volume'
 def klines(symbol):
     try:
-        resp = pd.DataFrame(client.klines(symbol, '1m'))
+        resp = pd.DataFrame(client.klines(symbol, '1m', limit=100))
         resp = resp.iloc[:,:6]
-        resp.columns = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-        resp = resp.set_index('Time')
+        resp.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
+        resp = resp.set_index('time')
         resp.index = pd.to_datetime(resp.index, unit = 'ms')
         resp.index = resp.index.tz_localize('UTC').tz_convert('EET')  # Convert to Athens time
         resp = resp.astype(float)
@@ -185,41 +167,54 @@ def close_open_orders(symbol):
             )
         )
 
-# Strategy. Can use any other:
+def calculate_indicators(df):
+    df['mom'] = talib.MOM(df['close'], timeperiod=10)
+    df['roc'] = talib.ROC(df['close'], timeperiod=10)
+    df['willr'] = talib.WILLR(df['high'], df['low'], df['close'], timeperiod=14)
+    df['adx'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
+    df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14)
+    df['ppo'] = talib.PPO(df['close'], fastperiod=12, slowperiod=26)  # Percentage Price Oscillator
+    df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)  # Moving Average Convergence Divergence
+    df['upperband'], df['middleband'], df['lowerband'] = talib.BBANDS(df['close'], timeperiod=20)
+    df['ht_trendline'] = talib.HT_TRENDLINE(df['close'])  # Hilbert Transform - Instantaneous Trendline
+    df['cci'] = talib.CCI(df['high'], df['low'], df['close'], timeperiod=14)  # Commodity Channel Index
+    return df
 
-def str_signal(symbol):
-    # Get the latest kline data
-    klines_data = klines(symbol)
-    close_prices = klines_data['Close'].astype(float)
+def str_signal(row):
 
-    previous_close_time_str = klines_data.index[-1].strftime("%Y-%m-%d %H:%M:%S")  # The closing time is at index -2
-    previous_close_time = datetime.datetime.strptime(previous_close_time_str, "%Y-%m-%d %H:%M:%S")
+    # Define conditions for 'up' and 'down'
+    conditions_up = [
+            row['mom'] > 0.001,
+            row['roc'] > 1.7,
+            row['willr'] < -90,
+            row['adx'] < 17.5,
+            row['mfi'] < 10,
+            row['ppo'] > 0.92,  # PPO is positive
+            row['macd'] > 0.00025,  # MACD is positive
+            row['close'] < row['lowerband'],  # Close price is below the lower Bollinger Band
+            row['ht_trendline'] > row['close'],  # HT_TRENDLINE is above the close price
+            row['cci'] > 170,  # CCI is above 100
+        ]
+    conditions_down = [
+            row['mom'] < -0.001,  # mirrored from long signal
+            row['roc'] < -1.7,  # mirrored from long signal
+            row['willr'] > -10,  # mirrored from long signal
+            row['adx'] > 42.5,  # mirrored from long signal
+            row['mfi'] > 90,  # mirrored from long signal
+            row['ppo'] < -0.92,  # PPO is negative, mirrored from long signal
+            row['macd'] < -0.00025,  # MACD is negative
+            row['close'] > row['upperband'],  # Close price is above the upper Bollinger Band
+            row['ht_trendline'] < row['close'],  # HT_TRENDLINE is below the close price
+            row['cci'] < -170,  # CCI is below -100
+        ]
 
-    current_time = client.time()['serverTime']
-    current_time = datetime.datetime.fromtimestamp(current_time / 1000)
-
-    difference = current_time - previous_close_time
-    difference = difference.total_seconds()
-    # Calculate MACD
-    macd_line, signal_line, _ = talib.MACD(close_prices)
-
-    # Get the last two points of MACD and signal line
-    macd_last = macd_line.iloc[-2]
-    signal_last = signal_line.iloc[-2]
-    print(macd_last, signal_last)
-
-    macd_prev = macd_line.iloc[-3]
-    signal_prev = signal_line.iloc[-3]
-    print(macd_prev, signal_prev)
-    # Check if the previous candle has closed and we're within a 10-second window
-    # Check for MACD cross
-    if macd_prev < signal_prev and macd_last > signal_last:
+    # Check for 'up' and 'down' conditions
+    if sum(conditions_up) >= 1:
         return 'up'
-    elif macd_prev > signal_prev and macd_last < signal_last:
+    elif sum(conditions_down) >= 1:
         return 'down'
     else:
         return 'none'
-
 
 def handle_signal(symbol, signal, leverage):
     print(f'Found {signal.upper()} signal for {symbol}')
@@ -232,25 +227,44 @@ def handle_signal(symbol, signal, leverage):
 
     return direction
 
-close_open_orders(symbol)
-close_position(symbol)
-set_mode(symbol, type)
+def trade(leverage, type, symbol, direction):
+
+    close_open_orders(symbol)
+    close_position(symbol)
+    set_mode(symbol, type)
 
 
-while True:
-    # we need to get balance to check if the connection is good, or you have all the needed permissions
-    balance = get_balance_usdt()
-    if balance == None:
-        print('Cant connect to API. Check IP, restrictions or wait some time')
-    if balance != None:
-        print("My balance is: ", balance, " USDT")
+    while True:
+        # we need to get balance to check if the connection is good, or you have all the needed permissions
+        balance = get_balance_usdt()
+        if balance == None:
+            print('Cant connect to API. Check IP, restrictions or wait some time')
+        if balance != None:
+            print("My balance is: ", balance, " USDT")
 
-        signal = str_signal(symbol)
+            df = calculate_indicators(klines(symbol).tail(20))
+            row = df.iloc[-2]
 
-        if signal == 'up' and (direction == 'down' or direction == ''):
-            direction = handle_signal(symbol, 'buy',  leverage)
-            sleep(30)
-        elif signal == 'down' and (direction == 'up' or direction == ''):
-            direction = handle_signal(symbol, 'sell', leverage)
-            sleep(30)
-        sleep(1)
+            signal = str_signal(row)
+
+            if signal == 'up' and (direction == 'down' or direction == ''):
+                direction = handle_signal(symbol, 'buy',  leverage)
+                sleep(30)
+            elif signal == 'down' and (direction == 'up' or direction == ''):
+                direction = handle_signal(symbol, 'sell', leverage)
+                sleep(30)
+            sleep(1)
+
+client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
+client.base_url = 'https://testnet.binancefuture.com'
+
+# 0.012 means +1.2%, 0.009 is -0.9%
+
+sl = 0.4
+orders = 0
+leverage = 1
+type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
+symbol = 'BTCUSDT'
+direction = ''
+
+trade(leverage, type, symbol, direction)

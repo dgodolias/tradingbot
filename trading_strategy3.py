@@ -64,9 +64,7 @@ class TradingBot:
             amount = self.balance
             self.balance -= amount
             btc_bought = (amount / price) * (1 - self.fee)  # Deduct the fee from the bought amount
-            order = self.client.order_market_buy(
-            symbol="BTCUSDT",
-            quantity=btc_bought)
+
             self.btc_balance += btc_bought
             self.total_money_spent += amount
             self.highest_balance = max(self.highest_balance, self.btc_balance * price)
@@ -79,9 +77,7 @@ class TradingBot:
             amount = self.balance
             self.balance -= amount
             btc_sold = (amount / price) * (1 - self.fee)  # Deduct the fee from the sold amount
-            order = self.client.order_market_sell(
-            symbol="BTCUSDT",
-            quantity=btc_sold)
+
             self.btc_balance -= btc_sold
             self.total_money_spent += amount
             self.highest_balance = max(self.highest_balance, self.btc_balance * price)
@@ -124,20 +120,7 @@ class TradingBot:
             
         self.close_position(row['close'])
         return self.balance
-    
-    def trade(self, df):
-        df = self.calculate_indicators(df)
-        row = df.iloc[-1]  # Get the last row
-        if self.long_signal(row):
-            if self.short_order:
-                self.close_position(row['close'])
-            if not self.long_order:
-                self.long(row['close'])
-        elif self.short_signal(row):
-            if self.long_order:
-                self.close_position(row['close'])
-            if not self.short_order:
-                self.short(row['close'])
+
     
 # Create a temporary client to get server time
 temp_client = Client()
@@ -147,20 +130,18 @@ offset = server_time['serverTime'] - int(time.time() * 1000)
 # Create a client with the correct offset
 client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox', '0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p')
 
-while True:
-    # Get the latest price data
-    klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "1 days ago UTC")
-    df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
-    df['close'] = pd.to_numeric(df['close'])
-    df['open'] = pd.to_numeric(df['open']) 
-    df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
-    df['high'] = pd.to_numeric(df['high'], errors='coerce')
-    df['low'] = pd.to_numeric(df['low'], errors='coerce')
 
-    bot = TradingBot()
+# Get the latest price data
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_1MINUTE, "1 days ago UTC")
+df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
+df['close'] = pd.to_numeric(df['close'])
+df['open'] = pd.to_numeric(df['open']) 
+df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
+df['high'] = pd.to_numeric(df['high'], errors='coerce')
+df['low'] = pd.to_numeric(df['low'], errors='coerce')
 
-    # Run the bot
-    bot.trade(df)
+bot = TradingBot()
 
-    # Sleep for a while before fetching the data again
-    time.sleep(60)
+# Run the trading bot
+balance = bot.backtest(df)
+print(f"Final balance: {balance}")
