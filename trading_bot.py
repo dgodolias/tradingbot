@@ -75,19 +75,13 @@ def set_mode(symbol, type):
 
 
 # Price precision. BTC has 1, XRP has 4
-def get_price_precision(symbol):
-    resp = client.exchange_info()['symbols']
-    for elem in resp:
-        if elem['symbol'] == symbol:
-            return elem['pricePrecision']
+def get_price_precision():
+    1
 
 
 # Amount precision. BTC has 3, XRP has 1
-def get_qty_precision(symbol):
-    resp = client.exchange_info()['symbols']
-    for elem in resp:
-        if elem['symbol'] == symbol:
-            return elem['quantityPrecision']
+def get_qty_precision():
+    3
 
 # Get the previous quantity to avoid errors with the precision
 def previous_qty(symbol, qty):
@@ -115,8 +109,8 @@ def open_order(symbol, side):
     fee_rate = get_fee_rate()
     volume = get_balance_usdt()
     price = float(client.ticker_price(symbol)['price'])
-    qty_precision = get_qty_precision(symbol)
-    price_precision = get_price_precision(symbol)
+    qty_precision = get_qty_precision()
+    price_precision = get_price_precision()
     direction = 'up' if side == 'buy' else 'down'
     fee_multiplier = 1 + fee_rate if side == 'buy' else 1 - fee_rate
     price *= fee_multiplier
@@ -306,5 +300,11 @@ direction = ''
 timeframe = 1 #in minutes
 print('Starting the bot')
 print('---------------------------------')
-trade(leverage, type, symbol, direction, timeframe)
+#trade(leverage, type, symbol, direction, timeframe)
+
+resp = client.exchange_info()['symbols']
+for elem in resp:
+    if elem['symbol'] == symbol:
+        print(elem)
+
 
