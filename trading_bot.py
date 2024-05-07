@@ -77,12 +77,12 @@ def set_mode(symbol, type):
 
 # Price precision. BTC has 1, XRP has 4
 def get_price_precision():
-    return 1
+    return price_precision
 
 
 # Amount precision. BTC has 3, XRP has 1
 def get_qty_precision():
-    return 3
+    return qty_precision
 
 # Get the previous quantity to avoid errors with the precision
 def previous_qty(symbol, qty):
@@ -326,6 +326,8 @@ orders = 0
 leverage = 1
 type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
 symbol = 'BTCUSDT'
+price_precision = 1
+qty_precision = 3
 direction = ''
 timeframe = 1 #in minutes
 print('Starting the bot')
