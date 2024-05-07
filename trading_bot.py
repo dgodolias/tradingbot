@@ -1,5 +1,6 @@
 import datetime
 import math
+import os
 from binance.um_futures import UMFutures
 import talib
 import pandas as pd
@@ -300,8 +301,13 @@ def trade(leverage, type, symbol, direction,timeframe):
                 print('No signal found')
                 pause_(klines_.index[-1].timestamp(),timeframe * 60)
 
-client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
-client.base_url = 'https://testnet.binancefuture.com'
+# Get the API key and secret from the environment
+key = os.getenv('API_KEY')
+secret = os.getenv('API_SECRET')
+base_url = os.getenv('API_BASE_URL')
+
+client = UMFutures(key=key, secret=secret)
+client.base_url = base_url
 
 # 0.012 means +1.2%, 0.009 is -0.9%
 
