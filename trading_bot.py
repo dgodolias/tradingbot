@@ -9,7 +9,6 @@ from binance.enums import *
 import pause
 import sys
 
-print('This is an error message', file=sys.stderr)
 def get_fee_rate():
     return 0.0007
 # getting your futures balance in USDT
@@ -128,6 +127,7 @@ def open_order(symbol, side):
         try:
             print("Required margin for the trade: ", price * qty)
             client.new_order(symbol=symbol, side=SIDE_BUY if side == 'buy' else SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET, quantity=qty)
+            print(symbol, side, "order placed")
             print(symbol, side, "placing order")
             client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
             if not position_opened(symbol):
@@ -140,6 +140,7 @@ def open_order(symbol, side):
                 break
 
     print("Available margin: ", client.account()['availableBalance'])
+    print('---------------------------------')
     return direction
 def close_position(symbol):
     try:
@@ -161,6 +162,7 @@ def close_position(symbol):
             )
 
             print(f"Closed position for {symbol}")
+            print('---------------------------------')
 
     except ClientError as error:
         print(
@@ -236,6 +238,8 @@ def handle_signal(symbol, signal, leverage):
 
     set_leverage(symbol, leverage)
     print(f'Placing order for {symbol}')
+
+    print('---------------------------------')
     direction = open_order(symbol, signal)
 
     return direction
@@ -269,8 +273,10 @@ def trade(leverage, type, symbol, direction,timeframe):
         balance = get_balance_usdt()
         if balance == None:
             print('Cant connect to API. Check IP, restrictions or wait some time')
+            print('---------------------------------')
         if balance != None:
             print("My balance is: ", balance, " USDT")
+            print('---------------------------------')
 
             klines_delay()
             klines_ = klines(symbol,timeframe)
