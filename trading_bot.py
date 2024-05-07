@@ -126,8 +126,10 @@ def open_order(symbol, side):
     while True:
         try:
             print("Required margin for the trade: ", price * qty)
-            client.new_order(symbol=symbol, side=SIDE_BUY if side == 'buy' else SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET, quantity=qty)
-            print(symbol, side, "order placed")
+            order = client.new_order(symbol=symbol, side=SIDE_BUY if side == 'buy' else SIDE_SELL, type=FUTURE_ORDER_TYPE_MARKET, quantity=qty)
+            print("*********************************************************************")
+            print(order)
+            print("*********************************************************************")
             print(symbol, side, "placing order")
             client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
             if not position_opened(symbol):
@@ -137,6 +139,8 @@ def open_order(symbol, side):
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
             qty = previous_qty(symbol, qty)
             if qty <= 0:
+                close_open_orders(symbol)
+                close_position(symbol)
                 break
 
     print("Available margin: ", client.account()['availableBalance'])
