@@ -139,6 +139,7 @@ def open_order(symbol, side):
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
             qty = previous_qty(symbol, qty)
+            sleep(2)
             if qty <= 0:
                 close_open_orders(symbol)
                 close_position(symbol)
@@ -147,6 +148,7 @@ def open_order(symbol, side):
     print("Available margin: ", client.account()['availableBalance'])
     print('---------------------------------')
     return direction
+
 def close_position(symbol):
     try:
         # Get the position details
