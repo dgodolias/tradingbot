@@ -138,6 +138,8 @@ def open_order(symbol, side):
             break
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
+            if position_opened(symbol):
+                break
             qty = previous_qty(symbol, qty)
             sleep(2)
             if qty <= 0:
