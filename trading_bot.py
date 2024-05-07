@@ -261,6 +261,7 @@ def pause_(previous_unix, step):
 
     print('Waiting for the next candle')
     pause.until(previous_unix + step)
+    sleep(2)
     print('Next candle is here!')
 
 def trade(leverage, type, symbol, direction,timeframe):
