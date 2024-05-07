@@ -124,6 +124,9 @@ def open_order(symbol, side):
     print("Normal quantity:", volume / price)
     print("Rounded down quantity:", qty)
 
+    max_retries = 5
+    retry_delay = 2
+    retry = 0
     while True:
         try:
             print("Required margin for the trade: ", price * qty)
@@ -133,11 +136,14 @@ def open_order(symbol, side):
             print("*********************************************************************")
             print(symbol, side, "placing order")
             client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
-            if not position_opened(symbol):
-                raise ClientError(status_code=400, error_code='PositionError', error_message='Position not opened')            
-            break
+
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
+            retry += 1
+            sleep(retry_delay)
+            if retry >= max_retries:
+                print("Max retries reached, exiting")
+                sys.exit(1)
             if position_opened(symbol):
                 break
             qty = previous_qty(symbol, qty)
