@@ -85,7 +85,7 @@ def get_qty_precision():
 
 # Get the previous quantity to avoid errors with the precision
 def previous_qty(symbol, qty):
-    precision = get_qty_precision()
+    precision = get_qty_precision(symbol)
     step = 10 ** -precision
     previous_qty = ((qty // step) * step) - step
     return previous_qty
@@ -259,8 +259,7 @@ def trade(leverage, type, symbol, direction,timeframe):
     close_open_orders(symbol)
     close_position(symbol)
     set_mode(symbol, type)
-    
-    sleep(5)
+
     pause_(klines(symbol,timeframe).index[-1].timestamp(),timeframe* 60)
 
     while True:
@@ -289,9 +288,7 @@ def trade(leverage, type, symbol, direction,timeframe):
                 print('No signal found')
                 pause_(klines_.index[-1].timestamp(),timeframe * 60)
 
-
-
-client = UMFutures(key='b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
+client = UMFutures(key = 'b1058af01fe2fe687de39cee6c253157a905cfa8d12b257cae5875eb93ffc6a0', secret='2f91937eae08fb22a25d3372e70180690a5c8da185077e66d759b4d440e68d80')
 client.base_url = 'https://testnet.binancefuture.com'
 
 # 0.012 means +1.2%, 0.009 is -0.9%
