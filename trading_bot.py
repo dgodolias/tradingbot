@@ -86,7 +86,7 @@ def get_qty_precision():
 
 # Get the previous quantity to avoid errors with the precision
 def previous_qty(symbol, qty):
-    precision = get_qty_precision(symbol)
+    precision = get_qty_precision()
     step = 10 ** -precision
     previous_qty = ((qty // step) * step) - step
     return previous_qty
