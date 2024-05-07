@@ -136,7 +136,7 @@ def open_order(symbol, side):
             print("*********************************************************************")
             print(symbol, side, "placing order")
             client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
-
+            break
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
             retry += 1
