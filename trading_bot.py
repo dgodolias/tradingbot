@@ -9,6 +9,8 @@ from binance.error import ClientError
 from binance.enums import *
 import pause
 import sys
+from colorama import Fore, Style
+
 
 def get_fee_rate():
     return 0.0007
@@ -134,8 +136,11 @@ def open_order(symbol, side):
             print("*********************************************************************")
             print(order)
             print("*********************************************************************")
-            print(symbol, side, "placing order")
-            client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
+            if side == 'buy':
+                print(Fore.GREEN + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)
+            else:
+                print(Fore.RED + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)            
+                client.new_order(symbol=symbol, side=SIDE_SELL if side == 'buy' else SIDE_BUY, type=FUTURE_ORDER_TYPE_STOP_MARKET, quantity=qty, timeInForce='GTC', stopPrice=sl_price)
             break
         except ClientError as error:
             print("Found error. status: {}, error code: {}, error message: {}".format(error.status_code, error.error_code, error.error_message))
@@ -262,7 +267,6 @@ def handle_signal(symbol, signal, leverage):
 def klines_delay():
     # Get the current second
     current_second = datetime.datetime.now().second
-    print('Current second:', current_second)
     # If we're in the [1, 10] range, sleep until the 10th second
     if 1 <= current_second <= 15:
         sleep_time = 15 - current_second
@@ -298,7 +302,6 @@ def trade(leverage, type, symbol, direction,timeframe):
             klines_ = klines(symbol,timeframe)
             df = calculate_indicators(klines_)
             row = df.iloc[-1]
-            print(row.name)
             signal = str_signal(row)
 
             if signal == 'up' and (direction == 'down' or direction == ''):
