@@ -219,28 +219,10 @@ def str_signal(row):
 
     # Define conditions for 'up' and 'down'
     conditions_up = [
-            row['mom'] > 0.001,
-            row['roc'] > 1.7,
-            row['willr'] < -90,
-            row['adx'] < 17.5,
-            row['mfi'] < 10,
-            row['ppo'] > 0.92,  # PPO is positive
-            row['macd'] > 0.00025,  # MACD is positive
             row['close'] < row['lowerband'],  # Close price is below the lower Bollinger Band
-            row['ht_trendline'] > row['close'],  # HT_TRENDLINE is above the close price
-            row['cci'] > 170,  # CCI is above 100
         ]
     conditions_down = [
-            row['mom'] < -0.001,  # mirrored from long signal
-            row['roc'] < -1.7,  # mirrored from long signal
-            row['willr'] > -10,  # mirrored from long signal
-            row['adx'] > 42.5,  # mirrored from long signal
-            row['mfi'] > 90,  # mirrored from long signal
-            row['ppo'] < -0.92,  # PPO is negative, mirrored from long signal
-            row['macd'] < -0.00025,  # MACD is negative
             row['close'] > row['upperband'],  # Close price is above the upper Bollinger Band
-            row['ht_trendline'] < row['close'],  # HT_TRENDLINE is below the close price
-            row['cci'] < -170,  # CCI is below -100
         ]
 
     # Check for 'up' and 'down' conditions
