@@ -32,4 +32,4 @@ RUN pip install --no-cache-dir -v binance-futures-connector
 EXPOSE 80
 
 # Run trading_bot.py when the container launches
-CMD ["python", "./trading_bot.py"]
+CMD ["python", "-u", "./trading_bot.py"]

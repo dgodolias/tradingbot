@@ -7,8 +7,9 @@ from time import sleep
 from binance.error import ClientError
 from binance.enums import *
 import pause
+import sys
 
-
+print('This is an error message', file=sys.stderr)
 def get_fee_rate():
     return 0.0007
 # getting your futures balance in USDT
