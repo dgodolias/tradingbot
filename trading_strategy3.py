@@ -11,10 +11,16 @@ class TradingBot:
         self.client = client
         self.btc_balance = 0
         self.total_money_spent = 0
-        self.highest_balance = 0
         self.fee = 0.00017  # Trading fee
         self.long_order = False
         self.short_order = False
+        self.long_trades = 0
+        self.successful_long_trades = 0
+        self.sum_pnl = 0
+        self.short_trades = 0
+        self.successful_short_trades = 0
+        self.sum_pnl_short = 0
+        self.max_realized_loss = 0
 
     def calculate_indicators(self, df):
         df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'])
@@ -51,39 +57,39 @@ class TradingBot:
 
     def long_signal(self, row):
         signals = [
-        row['macd'] > row['macdsignal'] + 0.16,  # Increased by 50%
-        row['stochrsi'] < 3,  # Decreased by 50%
-        row['macdhist'] > 0.0285,  # Increased by 50%
-        row['cci'] < -565,  # Decreased by 50%
-        row['close'] < row['vwap'] - 0.026,  # Increased by 50%
-        row['mfi'] < 3.5 , # Decreased by 50%
-        row['williams_r'] < -98 , # Decreased by 50%
-        row['adx'] > 34,  # Unchanged as it's a comparison
-        row['close'] > row['psar'] , # Unchanged as it's a comparison
-        (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and  # Price is above the cloud
-                              row['tenkan_sen'] > row['kijun_sen'] and  # Conversion Line is above Base Line
-                              row['chikou_span'] > row['close'] and  # Lagging Span is above the price
-                              row['senkou_span_a'] > row['senkou_span_b']) , # Senkou Span A is above Senkou Span B
-        row['volume_profile'] > row['volume_profile_shifted'] * 1.5  # Volume profile increased by 50%
+        row['macd'] > row['macdsignal'] + 0.16,  
+        row['stochrsi'] < 3,  
+        row['macdhist'] > 0.0285,  
+        row['cci'] < -565,  
+        row['close'] < row['vwap'] - 0.026,  
+        row['mfi'] < 3.5 , 
+        row['williams_r'] < -98 , 
+        row['adx'] > 35,  # CHECKED
+        row['close'] > row['psar'] , 
+        (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and 
+                              row['tenkan_sen'] > row['kijun_sen'] and  
+                              row['chikou_span'] > row['close'] and  
+                              row['senkou_span_a'] > row['senkou_span_b']) ,
+        row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
         return sum(signals) >= 6
 
     def short_signal(self, row):
         signals = [
-            row['macd'] < row['macdsignal'] - 0.16,  # Increased by 50%
-            row['stochrsi'] > 100 - 3,  # Decreased by 50%
-            row['macdhist'] < -0.0285,  # Decreased by 50%
-            row['cci'] > 565,  # Increased by 50%
-            row['close'] > row['vwap'] + 0.026,  # Increased by 50%
-            row['mfi'] > 96.5,  # Increased by 50%
-            row['williams_r'] > -2,  # Increased by 50%
-            row['adx'] < 26,  # Unchanged as it's a comparison
-            row['close'] < row['psar'],  # Unchanged as it's a comparison
-            (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and  # Price is below the cloud
-             row['tenkan_sen'] < row['kijun_sen'] and  # Conversion Line is below Base Line
-             row['chikou_span'] < row['close'] and  # Lagging Span is below the price
-             row['senkou_span_a'] < row['senkou_span_b']),  # Senkou Span A is below Senkou Span B
-            row['volume_profile'] < row['volume_profile_shifted'] * 0.5  # Volume profile decreased by 50%
+            row['macd'] < row['macdsignal'] - 0.16,  
+            row['stochrsi'] > 97,  
+            row['macdhist'] < -0.0285,  
+            row['cci'] > 565, 
+            row['close'] > row['vwap'] + 0.026,  
+            row['mfi'] > 96.5,  
+            row['williams_r'] > -2, 
+            row['adx'] < 25,  
+            row['close'] < row['psar'],  
+            (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and
+             row['tenkan_sen'] < row['kijun_sen'] and
+             row['chikou_span'] < row['close'] and  
+             row['senkou_span_a'] < row['senkou_span_b']),  
+            row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
         return sum(signals) >= 6
 
@@ -92,28 +98,30 @@ class TradingBot:
             self.long_order = True
             self.short_order = False
             amount = self.balance
-            btc_bought = math.floor((amount / price*(1 + self.fee)) * 1000) / 1000  
+            btc_bought = math.floor((amount / (price*(1 + self.fee))) * 1000) / 1000  
+
             self.balance -= btc_bought * price * (1 + self.fee)
             
             self.btc_balance += btc_bought
             self.total_money_spent = btc_bought * price * (1 + self.fee)
 
-            self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Longed at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+            self.long_trades += 1
 
     def short(self, price):
         if self.balance > 0:
             self.long_order = False
             self.short_order = True
             amount = self.balance
-            btc_sold = math.floor((amount / price*(1 + self.fee)) * 1000) / 1000  # Deduct the fee from the sold amount
+            btc_sold = math.floor((amount / (price*(1 + self.fee))) * 1000) / 1000  # Deduct the fee from the sold amount
+
             self.balance -= btc_sold * price * (1 + self.fee)  # Add the fee to the sold amount
 
             self.btc_balance -= btc_sold
             self.total_money_spent = btc_sold * price * (1 + self.fee)
 
-            self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Shorted at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+            self.short_trades += 1
 
     def close_position(self, price):
         if self.btc_balance > 0:
@@ -121,20 +129,34 @@ class TradingBot:
             total_sell = self.btc_balance * price * (1 - self.fee)  # Deduct the fee from the sold amount
             self.balance += total_sell
             self.btc_balance = 0
-            self.total_money_spent = 0
             self.highest_balance = 0
             self.long_order = False
             print(f"Closed long position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+
+            pnl = (self.balance - self.total_money_spent) / self.total_money_spent
+            self.sum_pnl += pnl
+            if pnl > 0:
+                self.successful_long_trades += 1
+            self.max_realized_loss = min(self.max_realized_loss, pnl)
+
+            self.total_money_spent = 0
         elif self.btc_balance < 0:
             # Close short positions
             total_buy = -self.btc_balance * price  * (1 + self.fee)  # Deduct the fee from the sold amount
             percentage_change = (self.total_money_spent - total_buy) / self.total_money_spent
             self.balance += self.total_money_spent * (1 + percentage_change) 
             self.btc_balance = 0
-            self.total_money_spent = 0
             self.highest_balance = 0
             self.short_order = False
             print(f"Closed short position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+
+            pnl = (self.balance - self.total_money_spent) / self.total_money_spent
+            self.sum_pnl_short += pnl
+            if pnl > 0:
+                self.successful_short_trades += 1
+            self.max_realized_loss = min(self.max_realized_loss, pnl)
+        
+            self.total_money_spent = 0
     
     def backtest(self, df):
             df = self.calculate_indicators(df)
@@ -164,7 +186,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "400 days ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])
 df['open'] = pd.to_numeric(df['open']) 
@@ -176,5 +198,14 @@ bot = TradingBot()
 
 # Run the trading bot
 balance = bot.backtest(df)
+print("----------------------------------------------------")
 print(f"Final balance: {balance}")
+print()
+print(f"Successful long trades: {bot.successful_long_trades}/ {bot.long_trades}")
+print(f"Average pnl per long trade: {bot.sum_pnl * 100 / bot.long_trades}"+"%")
+print()
+print(f"Successful short trades: {bot.successful_short_trades}/ {bot.short_trades}")
+print(f"Average pnl per short trade: {bot.sum_pnl_short * 100 / bot.short_trades}"+"%")
+print()
+print(f"Max realized loss: {bot.max_realized_loss * 100}%")
 client.close_connection()
