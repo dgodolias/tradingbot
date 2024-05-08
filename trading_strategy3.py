@@ -1,3 +1,4 @@
+import math
 import time
 from binance.client import Client
 import pandas as pd
@@ -51,13 +52,13 @@ class TradingBot:
     def long_signal(self, row):
         signals = [
         row['macd'] > row['macdsignal'] + 0.16,  # Increased by 50%
-        row['stochrsi'] < 3.25,  # Decreased by 50%
-        row['macdhist'] > 0.027,  # Increased by 50%
-        row['cci'] < -520,  # Decreased by 50%
+        row['stochrsi'] < 3,  # Decreased by 50%
+        row['macdhist'] > 0.0285,  # Increased by 50%
+        row['cci'] < -530,  # Decreased by 50%
         row['close'] < row['vwap'] - 0.026,  # Increased by 50%
         row['mfi'] < 3.5 , # Decreased by 50%
-        row['williams_r'] < -97 , # Decreased by 50%
-        row['adx'] > 33.5,  # Unchanged as it's a comparison
+        row['williams_r'] < -98 , # Decreased by 50%
+        row['adx'] > 34,  # Unchanged as it's a comparison
         row['close'] > row['psar'] , # Unchanged as it's a comparison
         (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and  # Price is above the cloud
                               row['tenkan_sen'] > row['kijun_sen'] and  # Conversion Line is above Base Line
@@ -70,13 +71,13 @@ class TradingBot:
     def short_signal(self, row):
         signals = [
             row['macd'] < row['macdsignal'] - 0.16,  # Increased by 50%
-            row['stochrsi'] > 100 - 3.25,  # Decreased by 50%
-            row['macdhist'] < -0.027,  # Decreased by 50%
-            row['cci'] > 520,  # Increased by 50%
+            row['stochrsi'] > 100 - 3,  # Decreased by 50%
+            row['macdhist'] < -0.0285,  # Decreased by 50%
+            row['cci'] > 530,  # Increased by 50%
             row['close'] > row['vwap'] + 0.026,  # Increased by 50%
             row['mfi'] > 96.5,  # Increased by 50%
-            row['williams_r'] > -3,  # Increased by 50%
-            row['adx'] < 26.5,  # Unchanged as it's a comparison
+            row['williams_r'] > -2,  # Increased by 50%
+            row['adx'] < 26,  # Unchanged as it's a comparison
             row['close'] < row['psar'],  # Unchanged as it's a comparison
             (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and  # Price is below the cloud
              row['tenkan_sen'] < row['kijun_sen'] and  # Conversion Line is below Base Line
@@ -91,12 +92,13 @@ class TradingBot:
             self.long_order = True
             self.short_order = False
             amount = self.balance
-            self.balance -= amount
-            btc_bought = (amount / price) * (1 - self.fee)  # Deduct the fee from the bought amount
-
+            btc_bought = math.floor((amount / price) * (1 - self.fee) * 1000) / 1000  # Deduct the fee from the bought amount
+            self.balance -= btc_bought * price * (1 + self.fee)
+            
             self.btc_balance += btc_bought
-            self.total_money_spent += amount
-            self.highest_balance = max(self.highest_balance, self.btc_balance * price)
+            self.total_money_spent += btc_bought * price# Add the fee to the bought amount
+
+            self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Longed at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
 
     def short(self, price):
@@ -104,12 +106,13 @@ class TradingBot:
             self.long_order = False
             self.short_order = True
             amount = self.balance
-            self.balance -= amount
-            btc_sold = (amount / price) * (1 - self.fee)  # Deduct the fee from the sold amount
+            btc_sold = math.floor((amount / price) * (1 - self.fee) * 1000) / 1000  # Deduct the fee from the sold amount
+            self.balance -= btc_sold * price * (1 + self.fee)  # Add the fee to the sold amount
 
             self.btc_balance -= btc_sold
-            self.total_money_spent += amount * (1 - self.fee)  # Add the fee to the bought amount
-            self.highest_balance = max(self.highest_balance, self.btc_balance * price)
+            self.total_money_spent += btc_sold * price 
+
+            self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Shorted at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
 
     def close_position(self, price):
