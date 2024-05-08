@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 class TradingBot:
     def __init__(self):
-        self.balance = 5000
+        self.balance = 2000
         self.btc_balance = 0
         self.short_balance = 0
         self.total_money_spent = 0
@@ -56,14 +56,14 @@ class TradingBot:
         return df
     
     def long_signal(self, row):
-        macd_condition = row['macd'] > row['macdsignal'] + 0.13  # Increased by 50%
+        macd_condition = row['macd'] > row['macdsignal'] + 0.16  # Increased by 50%
         stochrsi_condition = row['stochrsi'] < 3.25  # Decreased by 50%
-        macdhist_condition = row['macdhist'] > 0.026  # Increased by 50%
+        macdhist_condition = row['macdhist'] > 0.027 # Increased by 50%
         cci_condition = row['cci'] < -520  # Decreased by 50%
         vwap_condition = row['close'] < row['vwap'] - 0.026  # Increased by 50%
         mfi_condition = row['mfi'] < 3.5  # Decreased by 50%
-        williams_r_condition = row['williams_r'] < -96.5  # Decreased by 50%
-        adx_condition = row['adx'] > 32.5  # Unchanged as it's a comparison
+        williams_r_condition = row['williams_r'] < -97  # Decreased by 50%
+        adx_condition = row['adx'] > 33.5  # Unchanged as it's a comparison
         psar_condition = row['close'] > row['psar']  # Unchanged as it's a comparison
         ichimoku_condition = (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and  # Price is above the cloud
                               row['tenkan_sen'] > row['kijun_sen'] and  # Conversion Line is above Base Line
@@ -76,14 +76,14 @@ class TradingBot:
         return indicator_sum >= 6
 
     def short_signal(self, row):
-        macd_condition = row['macd'] < row['macdsignal'] - 0.13  # Increased by 50%     
+        macd_condition = row['macd'] < row['macdsignal'] - 0.16  # Increased by 50%     
         stochrsi_condition = row['stochrsi'] > 100 - 3.25  # Decreased by 50%   
-        macdhist_condition = row['macdhist'] < -0.026  # Decreased by 50%
+        macdhist_condition = row['macdhist'] < -0.027  # Decreased by 50%
         cci_condition = row['cci'] > 520  # Increased by 50%
         vwap_condition = row['close'] > row['vwap'] + 0.026  # Increased by 50%
         mfi_condition = row['mfi'] > 96.5  # Increased by 50%
         williams_r_condition = row['williams_r'] > -3.5  # Increased by 50%
-        adx_condition = row['adx'] < 27.5  # Unchanged as it's a comparison
+        adx_condition = row['adx'] < 26.5  # Unchanged as it's a comparison
         psar_condition = row['close'] < row['psar']  # Unchanged as it's a comparison
         ichimoku_condition = (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and  # Price is below the cloud
                               row['tenkan_sen'] < row['kijun_sen'] and  # Conversion Line is below Base Line
@@ -109,14 +109,14 @@ class TradingBot:
 
     def cover(self, price):
         self.short_order_ongoing = False
-        percentage_change = (price - self.price_last_order) / self.price_last_order
+        percentage_change = (self.price_last_order - price) / self.price_last_order
 
         if percentage_change > 0:
             self.successful_short_trades += 1
         else:
             self.max_realized_loss = max(self.max_realized_loss, abs(percentage_change))
 
-        total_cover = self.short_balance * self.price_last_order * ( 1 - percentage_change) * (1 - self.fee)  # Deduct the fee from the covered amount
+        total_cover = self.short_balance * self.price_last_order * ( 1 + percentage_change) * (1 - self.fee)  # Deduct the fee from the covered amount
 
         self.balance += total_cover
         self.short_balance = 0
@@ -200,7 +200,7 @@ start_date = datetime(2017, 7, 18)
 start_date_str = start_date.strftime("%d %b %Y %H:%M:%S")
 
 # Get the historical klines
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, start_date_str + " UTC", end_date_str + " UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "1000 days ago UTC")
 
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])

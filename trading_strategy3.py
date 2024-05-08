@@ -10,52 +10,80 @@ class TradingBot:
         self.btc_balance = 0
         self.total_money_spent = 0
         self.highest_balance = 0
-        self.fee = 0.00075  # Trading fee of 0.075%
+        self.fee = 0.00017  # Trading fee
         self.long_order = False
         self.short_order = False
 
     def calculate_indicators(self, df):
-        df['mom'] = talib.MOM(df['close'], timeperiod=10)
-        df['roc'] = talib.ROC(df['close'], timeperiod=10)
-        df['willr'] = talib.WILLR(df['high'], df['low'], df['close'], timeperiod=14)
-        df['adx'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
-        df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14)
-        df['ppo'] = talib.PPO(df['close'], fastperiod=12, slowperiod=26)  # Percentage Price Oscillator
-        df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)  # Moving Average Convergence Divergence
-        df['upperband'], df['middleband'], df['lowerband'] = talib.BBANDS(df['close'], timeperiod=20)
-        df['ht_trendline'] = talib.HT_TRENDLINE(df['close'])  # Hilbert Transform - Instantaneous Trendline
-        df['cci'] = talib.CCI(df['high'], df['low'], df['close'], timeperiod=14)  # Commodity Channel Index
+        df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'])
+        df['stochrsi'], df['stochrsi_signal'] = talib.STOCHRSI(df['close'])
+        df['atr'] = talib.ATR(df['high'], df['low'], df['close'])
+        df['ema'] = talib.EMA(df['close'])
+        df['cci'] = talib.CCI(df['high'], df['low'], df['close'])
+        df['vwap'] = (df['volume'] * (df['high'] + df['low'] + df['close']) / 3).cumsum() / df['volume'].cumsum()
+        df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'])
+        df['williams_r'] = talib.WILLR(df['high'], df['low'], df['close'])
+        df['adx'] = talib.ADX(df['high'], df['low'], df['close'])  # New
+        df['psar'] = talib.SAR(df['high'], df['low'])  # New
+
+        # Ichimoku Clouds
+        high_9 = df['high'].rolling(window=9).max()
+        low_9 = df['low'].rolling(window=9).min()
+        df['tenkan_sen'] = (high_9 + low_9) / 2
+
+        high_26 = df['high'].rolling(window=26).max()
+        low_26 = df['low'].rolling(window=26).min()
+        df['kijun_sen'] = (high_26 + low_26) / 2
+
+        df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
+        df['senkou_span_b'] = ((df['high'].rolling(window=52).max() + df['low'].rolling(window=52).min()) / 2).shift(26)
+
+        df['chikou_span'] = df['close'].shift(-26)
+
+        # Volume Profile
+        df['volume_profile'] = df['volume'] * (df['high'] + df['low'] + df['close']) / 3
+        df['volume_profile_shifted'] = df['volume_profile'].shift(1)
+
+    
         return df
 
     def long_signal(self, row):
         signals = [
-            row['mom'] > 0.001,
-            row['roc'] > 1.7,
-            row['willr'] < -90,
-            row['adx'] < 17.5,
-            row['mfi'] < 10,
-            row['ppo'] > 0.92,  # PPO is positive
-            row['macd'] > 0.00025,  # MACD is positive
-            row['close'] < row['lowerband'],  # Close price is below the lower Bollinger Band
-            row['ht_trendline'] > row['close'],  # HT_TRENDLINE is above the close price
-            row['cci'] > 170,  # CCI is above 100
+        row['macd'] > row['macdsignal'] + 0.16,  # Increased by 50%
+        row['stochrsi'] < 3.25,  # Decreased by 50%
+        row['macdhist'] > 0.027,  # Increased by 50%
+        row['cci'] < -520,  # Decreased by 50%
+        row['close'] < row['vwap'] - 0.026,  # Increased by 50%
+        row['mfi'] < 3.5 , # Decreased by 50%
+        row['williams_r'] < -97 , # Decreased by 50%
+        row['adx'] > 33.5,  # Unchanged as it's a comparison
+        row['close'] > row['psar'] , # Unchanged as it's a comparison
+        (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and  # Price is above the cloud
+                              row['tenkan_sen'] > row['kijun_sen'] and  # Conversion Line is above Base Line
+                              row['chikou_span'] > row['close'] and  # Lagging Span is above the price
+                              row['senkou_span_a'] > row['senkou_span_b']) , # Senkou Span A is above Senkou Span B
+        row['volume_profile'] > row['volume_profile_shifted'] * 1.5  # Volume profile increased by 50%
         ]
-        return sum(signals) >= 4
+        return sum(signals) >= 6
 
     def short_signal(self, row):
         signals = [
-            row['mom'] < -0.001,  # mirrored from long signal
-            row['roc'] < -1.7,  # mirrored from long signal
-            row['willr'] > -10,  # mirrored from long signal
-            row['adx'] > 42.5,  # mirrored from long signal
-            row['mfi'] > 90,  # mirrored from long signal
-            row['ppo'] < -0.92,  # PPO is negative, mirrored from long signal
-            row['macd'] < -0.00025,  # MACD is negative
-            row['close'] > row['upperband'],  # Close price is above the upper Bollinger Band
-            row['ht_trendline'] < row['close'],  # HT_TRENDLINE is below the close price
-            row['cci'] < -170,  # CCI is below -100
+            row['macd'] < row['macdsignal'] - 0.16,  # Increased by 50%
+            row['stochrsi'] > 100 - 3.25,  # Decreased by 50%
+            row['macdhist'] < -0.027,  # Decreased by 50%
+            row['cci'] > 520,  # Increased by 50%
+            row['close'] > row['vwap'] + 0.026,  # Increased by 50%
+            row['mfi'] > 96.5,  # Increased by 50%
+            row['williams_r'] > -3,  # Increased by 50%
+            row['adx'] < 26.5,  # Unchanged as it's a comparison
+            row['close'] < row['psar'],  # Unchanged as it's a comparison
+            (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and  # Price is below the cloud
+             row['tenkan_sen'] < row['kijun_sen'] and  # Conversion Line is below Base Line
+             row['chikou_span'] < row['close'] and  # Lagging Span is below the price
+             row['senkou_span_a'] < row['senkou_span_b']),  # Senkou Span A is below Senkou Span B
+            row['volume_profile'] < row['volume_profile_shifted'] * 0.5  # Volume profile decreased by 50%
         ]
-        return sum(signals) >= 4
+        return sum(signals) >= 6
 
     def long(self, price):
         if self.balance > 0:
@@ -95,9 +123,9 @@ class TradingBot:
             print(f"Closed long position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
         elif self.btc_balance < 0:
             # Close short positions
-            total_buy = -self.btc_balance * price * (1 + self.fee)  # Add the fee to the bought amount
-            percentage_change = (total_buy - self.total_money_spent) / self.total_money_spent
-            self.balance += self.total_money_spent * (1 - percentage_change)
+            total_buy = -self.btc_balance * price  # Add the fee to the bought amount
+            percentage_change = (self.total_money_spent - total_buy) / self.total_money_spent
+            self.balance += self.total_money_spent * (1 + percentage_change) * (1 - self.fee)  # Deduct the fee from the sold amount
             self.btc_balance = 0
             self.total_money_spent = 0
             self.highest_balance = 0
@@ -132,7 +160,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_1MINUTE, "1 days ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "3600 days ago UTC")
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])
 df['open'] = pd.to_numeric(df['open']) 
