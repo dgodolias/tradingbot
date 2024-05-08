@@ -124,9 +124,9 @@ class TradingBot:
             print(f"Closed long position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
         elif self.btc_balance < 0:
             # Close short positions
-            total_buy = -self.btc_balance * price  # Add the fee to the bought amount
+            total_buy = -self.btc_balance * price  * (1 + self.fee)  # Deduct the fee from the sold amount
             percentage_change = (self.total_money_spent - total_buy) / self.total_money_spent
-            self.balance += self.total_money_spent * (1 + percentage_change) * (1 - self.fee)  # Deduct the fee from the sold amount
+            self.balance += self.total_money_spent * (1 + percentage_change) 
             self.btc_balance = 0
             self.total_money_spent = 0
             self.highest_balance = 0
