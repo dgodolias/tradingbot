@@ -54,7 +54,7 @@ class TradingBot:
         row['macd'] > row['macdsignal'] + 0.16,  # Increased by 50%
         row['stochrsi'] < 3,  # Decreased by 50%
         row['macdhist'] > 0.0285,  # Increased by 50%
-        row['cci'] < -530,  # Decreased by 50%
+        row['cci'] < -565,  # Decreased by 50%
         row['close'] < row['vwap'] - 0.026,  # Increased by 50%
         row['mfi'] < 3.5 , # Decreased by 50%
         row['williams_r'] < -98 , # Decreased by 50%
@@ -73,7 +73,7 @@ class TradingBot:
             row['macd'] < row['macdsignal'] - 0.16,  # Increased by 50%
             row['stochrsi'] > 100 - 3,  # Decreased by 50%
             row['macdhist'] < -0.0285,  # Decreased by 50%
-            row['cci'] > 530,  # Increased by 50%
+            row['cci'] > 565,  # Increased by 50%
             row['close'] > row['vwap'] + 0.026,  # Increased by 50%
             row['mfi'] > 96.5,  # Increased by 50%
             row['williams_r'] > -2,  # Increased by 50%
@@ -92,11 +92,11 @@ class TradingBot:
             self.long_order = True
             self.short_order = False
             amount = self.balance
-            btc_bought = math.floor((amount / price) * (1 - self.fee) * 1000) / 1000  # Deduct the fee from the bought amount
+            btc_bought = math.floor((amount / price*(1 + self.fee)) * 1000) / 1000  
             self.balance -= btc_bought * price * (1 + self.fee)
             
             self.btc_balance += btc_bought
-            self.total_money_spent += btc_bought * price# Add the fee to the bought amount
+            self.total_money_spent = btc_bought * price * (1 + self.fee)
 
             self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Longed at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
@@ -106,11 +106,11 @@ class TradingBot:
             self.long_order = False
             self.short_order = True
             amount = self.balance
-            btc_sold = math.floor((amount / price) * (1 - self.fee) * 1000) / 1000  # Deduct the fee from the sold amount
+            btc_sold = math.floor((amount / price*(1 + self.fee)) * 1000) / 1000  # Deduct the fee from the sold amount
             self.balance -= btc_sold * price * (1 + self.fee)  # Add the fee to the sold amount
 
             self.btc_balance -= btc_sold
-            self.total_money_spent += btc_sold * price 
+            self.total_money_spent = btc_sold * price * (1 + self.fee)
 
             self.highest_balance = max(self.highest_balance, self.btc_balance * price + self.balance)
             print(f"Shorted at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
@@ -164,7 +164,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "400 days ago UTC")
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])
 df['open'] = pd.to_numeric(df['open']) 
