@@ -21,6 +21,8 @@ class TradingBot:
         self.successful_short_trades = 0
         self.sum_pnl_short = 0
         self.max_realized_loss = 0
+        self.top_losses = []
+        self.unrealized_losses = []
 
     def calculate_indicators(self, df):
         df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'])
@@ -127,17 +129,26 @@ class TradingBot:
         if self.btc_balance > 0:
             # Close long positions
             total_sell = self.btc_balance * price * (1 - self.fee)  # Deduct the fee from the sold amount
+            percentage_change = (total_sell - self.total_money_spent) / self.total_money_spent
             self.balance += total_sell
             self.btc_balance = 0
             self.highest_balance = 0
             self.long_order = False
             print(f"Closed long position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
 
-            pnl = (self.balance - self.total_money_spent) / self.total_money_spent
-            self.sum_pnl += pnl
-            if pnl > 0:
+            self.sum_pnl += percentage_change
+            if percentage_change > 0:
                 self.successful_long_trades += 1
-            self.max_realized_loss = min(self.max_realized_loss, pnl)
+            else:
+                if len(self.top_losses) < 10:  # If the list has less than 10 items, we simply add the new loss
+                    self.top_losses.append(percentage_change)
+                else:  # If the list already has 10 items
+                    min_loss = min(self.top_losses, key=abs)  # We find the smallest loss (in absolute terms)
+                    if abs(percentage_change) > abs(min_loss):  # If the new loss is larger
+                        self.top_losses.remove(min_loss)  # We remove the smallest loss from the list
+                        self.top_losses.append(percentage_change)  # And add the new one
+
+            self.max_realized_loss = min(self.max_realized_loss, percentage_change)
 
             self.total_money_spent = 0
         elif self.btc_balance < 0:
@@ -150,17 +161,41 @@ class TradingBot:
             self.short_order = False
             print(f"Closed short position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
 
-            pnl = (self.balance - self.total_money_spent) / self.total_money_spent
-            self.sum_pnl_short += pnl
-            if pnl > 0:
+            self.sum_pnl_short += percentage_change
+            if percentage_change > 0:
                 self.successful_short_trades += 1
-            self.max_realized_loss = min(self.max_realized_loss, pnl)
+            else:
+                if len(self.top_losses) < 10:  # If the list has less than 10 items, we simply add the new loss
+                    self.top_losses.append(percentage_change)
+                else:  # If the list already has 10 items
+                    min_loss = min(self.top_losses, key=abs)  # We find the smallest loss (in absolute terms)
+                    if abs(percentage_change) > abs(min_loss):  # If the new loss is larger
+                        self.top_losses.remove(min_loss)  # We remove the smallest loss from the list
+                        self.top_losses.append(percentage_change)  # And add the new one
+
+            self.max_realized_loss = min(self.max_realized_loss, percentage_change)
         
             self.total_money_spent = 0
     
     def backtest(self, df):
             df = self.calculate_indicators(df)
             for _, row in df.iterrows():
+                #finding the 10 biggest unrealised losses
+                if self.long_order:
+                    self.unrealized_losses.append(((row['close']  - self.total_money_spent) / self.total_money_spent))
+                    if len(self.unrealized_losses) > 10:
+                        self.unrealized_losses.remove(min(self.unrealized_losses, key=abs))
+
+                    if row['close'] * self.btc_balance <= self.total_money_spent * 0.30:
+                        self.close_position(row['close'])
+                elif self.short_order:
+                    self.unrealized_losses.append(((self.total_money_spent - row['close']) / self.total_money_spent))
+                    if len(self.unrealized_losses) > 10:
+                        self.unrealized_losses.remove(min(self.unrealized_losses, key=abs))
+
+                    if row['close'] * (-self.btc_balance) >= self.total_money_spent * 1.30:
+                        self.close_position(row['close'])                
+
                 if self.long_signal(row):
                     if self.short_order:
                         self.close_position(row['close'])
@@ -202,10 +237,11 @@ print("----------------------------------------------------")
 print(f"Final balance: {balance}")
 print()
 print(f"Successful long trades: {bot.successful_long_trades}/ {bot.long_trades}")
-print(f"Average pnl per long trade: {bot.sum_pnl * 100 / bot.long_trades}"+"%")
+print(f"Average pnl per long trade: {bot.sum_pnl }"+"%")
 print()
 print(f"Successful short trades: {bot.successful_short_trades}/ {bot.short_trades}")
-print(f"Average pnl per short trade: {bot.sum_pnl_short * 100 / bot.short_trades}"+"%")
+print(f"Average pnl per short trade: {bot.sum_pnl_short}"+"%")
 print()
-print(f"Max realized loss: {bot.max_realized_loss * 100}%")
+
+print(f"Top 10 realized losses: {sorted(bot.top_losses)}")
 client.close_connection()
