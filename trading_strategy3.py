@@ -2,6 +2,7 @@ import time
 from binance.client import Client
 import pandas as pd
 import talib
+import plotly.graph_objects as go
 
 class TradingBot:
     def __init__(self):
@@ -107,7 +108,7 @@ class TradingBot:
             btc_sold = (amount / price) * (1 - self.fee)  # Deduct the fee from the sold amount
 
             self.btc_balance -= btc_sold
-            self.total_money_spent += amount
+            self.total_money_spent += amount * (1 - self.fee)  # Add the fee to the bought amount
             self.highest_balance = max(self.highest_balance, self.btc_balance * price)
             print(f"Shorted at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
 
@@ -131,23 +132,23 @@ class TradingBot:
             self.highest_balance = 0
             self.short_order = False
             print(f"Closed short position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
-
+    
     def backtest(self, df):
-        df = self.calculate_indicators(df)
-        for _, row in df.iterrows():
-            if self.long_signal(row):
-                if self.short_order:
-                    self.close_position(row['close'])
-                if not self.long_order:
-                    self.long(row['close'])
-            elif self.short_signal(row):
-                if self.long_order:
-                    self.close_position(row['close'])
-                if not self.short_order:
-                    self.short(row['close'])
-            
-        self.close_position(row['close'])
-        return self.balance
+            df = self.calculate_indicators(df)
+            for _, row in df.iterrows():
+                if self.long_signal(row):
+                    if self.short_order:
+                        self.close_position(row['close'])
+                    if not self.long_order:
+                        self.long(row['close'])
+                elif self.short_signal(row):
+                    if self.long_order:
+                        self.close_position(row['close'])
+                    if not self.short_order:
+                        self.short(row['close'])
+                
+            self.close_position(row['close'])
+            return self.balance
 
     
 # Create a temporary client to get server time
@@ -160,7 +161,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "3600 days ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])
 df['open'] = pd.to_numeric(df['open']) 
@@ -173,3 +174,4 @@ bot = TradingBot()
 # Run the trading bot
 balance = bot.backtest(df)
 print(f"Final balance: {balance}")
+client.close_connection()
