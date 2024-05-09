@@ -158,6 +158,13 @@ def open_order(symbol, side):
             if qty <= 0:
                 close_open_orders(symbol)
                 close_position(symbol)
+                ################### JUST FOR TESTING ###################
+                if side == 'buy':
+                    print(Fore.GREEN + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)
+                else:
+                    print(Fore.RED + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)
+                    
+                ################### JUST FOR TESTING ###################
                 break
 
     print("Available margin: ", client.account()['availableBalance'])
@@ -360,7 +367,7 @@ except ValueError:
     base_url = os.getenv('API_BASE_URL')
 
 client = UMFutures(key=key, secret=secret)
-client.base_url = base_url
+#client.base_url = base_url
 
 
 sl = 0.30
