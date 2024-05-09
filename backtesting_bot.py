@@ -225,7 +225,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "4 days ago UTC")
+klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
 
 
 """start_date = "18 Aug, 2017"
@@ -247,6 +247,7 @@ df['low'] = pd.to_numeric(df['low'], errors='coerce')
 bot = TradingBot()
 
 # Run the trading bot
+df = df.iloc[::-1]
 balance = bot.backtest(df)
 print("----------------------------------------------------")
 print("First candle date: ", df['timestamp'].iloc[0])
