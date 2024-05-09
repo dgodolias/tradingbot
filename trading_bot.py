@@ -15,8 +15,8 @@ from colorama import Fore, Style
 
 def get_fee_rate():
     return 0.00017
-# getting your futures balance in USDT
-def get_balance_usdt():
+# getting your futures balance in USDC
+def get_balance_USDC():
     try:
         account_info = client.account()
         return float(account_info['availableBalance'])
@@ -111,7 +111,7 @@ def position_opened(symbol):
 
 def open_order(symbol, side):
     fee_rate = get_fee_rate()
-    volume = get_balance_usdt()
+    volume = get_balance_USDC()
     price = float(client.ticker_price(symbol)['price'])
     qty_precision = get_qty_precision()
     price_precision = get_price_precision()
@@ -320,12 +320,12 @@ def trade(leverage, type, symbol, direction,timeframe):
     while True:
         if not position_opened(symbol): direction = ''
         # we need to get balance to check if the connection is good, or you have all the needed permissions
-        balance = get_balance_usdt()
+        balance = get_balance_USDC()
         if balance == None:
             print('Cant connect to API. Check IP, restrictions or wait some time')
             print('---------------------------------')
         if balance != None:
-            print("My balance is: ", balance, " USDT")
+            print("My balance is: ", balance, " USDC")
             print('---------------------------------')
 
             klines_delay()
@@ -362,13 +362,12 @@ except ValueError:
 client = UMFutures(key=key, secret=secret)
 client.base_url = base_url
 
-# 0.012 means +1.2%, 0.009 is -0.9%
 
 sl = 0.30
 orders = 0
 leverage = 1
 type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
-symbol = 'BTCUSDT'
+symbol = 'ETHUSDC'
 price_precision = 1
 qty_precision = 3
 direction = ''
