@@ -225,7 +225,7 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "400 days ago UTC")
+klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "4 days ago UTC")
 
 
 """start_date = "18 Aug, 2017"
@@ -263,6 +263,6 @@ print("Average pnl per trade: ", 100 * ((bot.sum_pnl_long + bot.sum_pnl_short) /
 print(f"Top 10 realized losses: {sorted(bot.top_losses)}")
 
 # Play sound
-for _ in range(1):
-    winsound.Beep(500, 500)  # Beep at 1000 Hz for 500 ms
+for _ in range(2):
+    winsound.Beep(1000, 500)  # Beep at 1000 Hz for 500 ms
 client.close_connection()

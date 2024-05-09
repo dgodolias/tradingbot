@@ -2,6 +2,7 @@ import datetime
 import math
 import os
 from binance.um_futures import UMFutures
+from dotenv import load_dotenv
 import talib
 import pandas as pd
 from time import sleep
@@ -13,7 +14,7 @@ from colorama import Fore, Style
 
 
 def get_fee_rate():
-    return 0.0007
+    return 0.00017
 # getting your futures balance in USDT
 def get_balance_usdt():
     try:
@@ -114,6 +115,7 @@ def open_order(symbol, side):
     price = float(client.ticker_price(symbol)['price'])
     qty_precision = get_qty_precision()
     price_precision = get_price_precision()
+
     direction = 'up' if side == 'buy' else 'down'
     fee_multiplier = 1 + fee_rate if side == 'buy' else 1 - fee_rate
     price *= fee_multiplier
@@ -203,32 +205,78 @@ def close_open_orders(symbol):
         )
 
 def calculate_indicators(df):
-    df['mom'] = talib.MOM(df['close'], timeperiod=10)
-    df['roc'] = talib.ROC(df['close'], timeperiod=10)
-    df['willr'] = talib.WILLR(df['high'], df['low'], df['close'], timeperiod=14)
-    df['adx'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
-    df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'], timeperiod=14)
-    df['ppo'] = talib.PPO(df['close'], fastperiod=12, slowperiod=26)  # Percentage Price Oscillator
-    df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)  # Moving Average Convergence Divergence
-    df['upperband'], df['middleband'], df['lowerband'] = talib.BBANDS(df['close'], timeperiod=20)
-    df['ht_trendline'] = talib.HT_TRENDLINE(df['close'])  # Hilbert Transform - Instantaneous Trendline
-    df['cci'] = talib.CCI(df['high'], df['low'], df['close'], timeperiod=14)  # Commodity Channel Index
-    return df
+        df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'])
+        df['stochrsi'], df['stochrsi_signal'] = talib.STOCHRSI(df['close'])
+        df['atr'] = talib.ATR(df['high'], df['low'], df['close'])
+        df['ema'] = talib.EMA(df['close'])
+        df['cci'] = talib.CCI(df['high'], df['low'], df['close'])
+        df['vwap'] = (df['volume'] * (df['high'] + df['low'] + df['close']) / 3).cumsum() / df['volume'].cumsum()
+        df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'])
+        df['williams_r'] = talib.WILLR(df['high'], df['low'], df['close'])
+        df['adx'] = talib.ADX(df['high'], df['low'], df['close'])  # New
+        df['psar'] = talib.SAR(df['high'], df['low'])  # New
+
+        # Ichimoku Clouds
+        high_9 = df['high'].rolling(window=9).max()
+        low_9 = df['low'].rolling(window=9).min()
+        df['tenkan_sen'] = (high_9 + low_9) / 2
+
+        high_26 = df['high'].rolling(window=26).max()
+        low_26 = df['low'].rolling(window=26).min()
+        df['kijun_sen'] = (high_26 + low_26) / 2
+
+        df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
+        df['senkou_span_b'] = ((df['high'].rolling(window=52).max() + df['low'].rolling(window=52).min()) / 2).shift(26)
+
+        df['chikou_span'] = df['close'].shift(-26)
+
+        # Volume Profile
+        df['volume_profile'] = df['volume'] * (df['high'] + df['low'] + df['close']) / 3
+        df['volume_profile_shifted'] = df['volume_profile'].shift(1)
+
+    
+        return df
 
 def str_signal(row):
 
     # Define conditions for 'up' and 'down'
     conditions_up = [
-            row['close'] < row['lowerband'],  # Close price is below the lower Bollinger Band
+        row['macd'] > row['macdsignal'] + 0.16,  #CHECKED
+        row['stochrsi'] < 3,  # CHECKED
+        row['macdhist'] > 0.024,  # CHECKED
+        row['cci'] < -228,  # CHECKED
+        row['close'] < row['vwap'] - 0.026,  
+        row['mfi'] < 3.5 , # CHECKED
+        row['williams_r'] < -98 , # CHECKED
+        row['adx'] > 35,  # CHECKED
+        row['close'] > row['psar'] , 
+        (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and 
+                        row['tenkan_sen'] > row['kijun_sen'] and  
+                        row['chikou_span'] > row['close'] and  
+                        row['senkou_span_a'] > row['senkou_span_b']) , # CHECKED
+        row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
     conditions_down = [
-            row['close'] > row['upperband'],  # Close price is above the upper Bollinger Band
-        ]
+        row['macd'] < row['macdsignal'] - 0.16,  
+        row['stochrsi'] > 97,  
+        row['macdhist'] < -0.024,  
+        row['cci'] >  228, 
+        row['close'] > row['vwap'] + 0.026,  
+        row['mfi'] > 96.5,  
+        row['williams_r'] > -2, 
+        row['adx'] < 25,  
+        row['close'] < row['psar'],  
+        (row['close'] < row['senkou_span_a'] and row['close'] < row['senkou_span_b'] and
+                        row['tenkan_sen'] < row['kijun_sen'] and
+                        row['chikou_span'] < row['close'] and  
+                        row['senkou_span_a'] < row['senkou_span_b']),  
+                        row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
+    ]
 
     # Check for 'up' and 'down' conditions
-    if sum(conditions_up) >= 1:
+    if sum(conditions_up) >= 5:
         return 'up'
-    elif sum(conditions_down) >= 1:
+    elif sum(conditions_down) >= 5:
         return 'down'
     else:
         return 'none'
@@ -284,7 +332,7 @@ def trade(leverage, type, symbol, direction,timeframe):
             klines_ = klines(symbol,timeframe)
             df = calculate_indicators(klines_)
             row = df.iloc[-1]
-            signal = str_signal(row)
+            signal = str_signal(row)         
 
             if signal == 'up' and (direction == 'down' or direction == ''):
                 direction = handle_signal(symbol, 'buy',  leverage)
@@ -297,16 +345,26 @@ def trade(leverage, type, symbol, direction,timeframe):
                 pause_(klines_.index[-1].timestamp(),timeframe * 60)
 
 # Get the API key and secret from the environment
-key = os.getenv('API_KEY')
-secret = os.getenv('API_SECRET')
-base_url = os.getenv('API_BASE_URL')
+try:
+    key = os.getenv('API_KEY')
+    secret = os.getenv('API_SECRET')
+    base_url = os.getenv('API_BASE_URL')
+
+    if not key or not secret or not base_url:
+        raise ValueError("Missing environment variable")
+
+except ValueError:
+    load_dotenv('keys.env')
+    key = os.getenv('API_KEY')
+    secret = os.getenv('API_SECRET')
+    base_url = os.getenv('API_BASE_URL')
 
 client = UMFutures(key=key, secret=secret)
 client.base_url = base_url
 
 # 0.012 means +1.2%, 0.009 is -0.9%
 
-sl = 0.4
+sl = 0.30
 orders = 0
 leverage = 1
 type = 'CROSSED'  # type is 'ISOLATED' or 'CROSS'
@@ -314,7 +372,7 @@ symbol = 'BTCUSDT'
 price_precision = 1
 qty_precision = 3
 direction = ''
-timeframe = 1 #in minutes
+timeframe = 15 #in minutes
 print('Starting the bot')
 print('---------------------------------')
 trade(leverage, type, symbol, direction, timeframe)
