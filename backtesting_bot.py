@@ -64,7 +64,7 @@ class TradingBot:
         row['macd'] > row['macdsignal'] + 0.16,  #CHECKED
         row['stochrsi'] < 3,  # CHECKED
         row['macdhist'] > 0.024,  # CHECKED
-        row['cci'] < -565,  
+        row['cci'] < -235,  
         row['close'] < row['vwap'] - 0.026,  
         row['mfi'] < 3.5 , 
         row['williams_r'] < -98 , # CHECKED
@@ -83,7 +83,7 @@ class TradingBot:
             row['macd'] < row['macdsignal'] - 0.16,  
             row['stochrsi'] > 97,  
             row['macdhist'] < -0.024,  
-            row['cci'] > 565, 
+            row['cci'] >  235, 
             row['close'] > row['vwap'] + 0.026,  
             row['mfi'] > 96.5,  
             row['williams_r'] > -2, 
