@@ -158,13 +158,6 @@ def open_order(symbol, side):
             if qty <= 0:
                 close_open_orders(symbol)
                 close_position(symbol)
-                ################### JUST FOR TESTING ###################
-                if side == 'buy':
-                    print(Fore.GREEN + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)
-                else:
-                    print(Fore.RED + ">>>", symbol, side, "PLACED ORDER <<<" + Style.RESET_ALL)
-                    
-                ################### JUST FOR TESTING ###################
                 break
 
     print("Available margin: ", client.account()['availableBalance'])
@@ -342,10 +335,12 @@ def trade(leverage, type, symbol, direction,timeframe):
             signal = str_signal(row)         
 
             if signal == 'up' and (direction == 'down' or direction == ''):
-                direction = handle_signal(symbol, 'buy',  leverage)
+                handle_signal(symbol, 'buy',  leverage)
+                direction = 'up'
                 pause_(klines_.index[-1].timestamp(), timeframe * 60)
             elif signal == 'down' and (direction == 'up' or direction == ''):
-                direction = handle_signal(symbol, 'sell', leverage)
+                handle_signal(symbol, 'sell', leverage)
+                direction = 'down'
                 pause_(klines_.index[-1].timestamp(),timeframe * 60)
             else:
                 print('No signal found')
@@ -378,7 +373,7 @@ symbol = 'ETHUSDC'
 price_precision = 1
 qty_precision = 3
 direction = ''
-timeframe = 15 #in minutes
+timeframe = 1 #in minutes
 print('Starting the bot')
 print('---------------------------------')
 trade(leverage, type, symbol, direction, timeframe)

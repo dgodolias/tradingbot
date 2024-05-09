@@ -5,7 +5,6 @@ import winsound
 from binance.client import Client
 import pandas as pd
 import talib
-import plotly.graph_objects as go
 
 class TradingBot:
     def __init__(self):
@@ -96,6 +95,7 @@ class TradingBot:
              row['senkou_span_a'] < row['senkou_span_b']),  
             row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
+        print(sum(signals))
         return sum(signals) >= 5
 
     def long(self, price):
@@ -225,8 +225,8 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
-
+klines = client.get_historical_klines("ETHUSDC", Client.KLINE_INTERVAL_15MINUTE, "1 days ago UTC")
+print(klines)
 
 """start_date = "18 Aug, 2017"
 end_date = "09 May, 2024"
