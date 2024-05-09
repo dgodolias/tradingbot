@@ -1,6 +1,7 @@
 import datetime
 import math
 import time
+import winsound
 from binance.client import Client
 import pandas as pd
 import talib
@@ -11,14 +12,14 @@ class TradingBot:
         self.precision = 2
         self.balance = 1000
         self.client = client
-        self.btc_balance = 0
+        self.eth_balance = 0
         self.total_money_spent = 0
         self.fee = 0.00017  # Trading fee
         self.long_order = False
         self.short_order = False
         self.long_trades = 0
         self.successful_long_trades = 0
-        self.sum_pnl = 0
+        self.sum_pnl_long = 0
         self.short_trades = 0
         self.successful_short_trades = 0
         self.sum_pnl_short = 0
@@ -64,26 +65,26 @@ class TradingBot:
         row['macd'] > row['macdsignal'] + 0.16,  #CHECKED
         row['stochrsi'] < 3,  # CHECKED
         row['macdhist'] > 0.024,  # CHECKED
-        row['cci'] < -235,  
+        row['cci'] < -228,  # CHECKED
         row['close'] < row['vwap'] - 0.026,  
-        row['mfi'] < 3.5 , 
+        row['mfi'] < 3.5 , # CHECKED
         row['williams_r'] < -98 , # CHECKED
         row['adx'] > 35,  # CHECKED
         row['close'] > row['psar'] , 
         (row['close'] > row['senkou_span_a'] and row['close'] > row['senkou_span_b'] and 
                               row['tenkan_sen'] > row['kijun_sen'] and  
                               row['chikou_span'] > row['close'] and  
-                              row['senkou_span_a'] > row['senkou_span_b']) ,
+                              row['senkou_span_a'] > row['senkou_span_b']) , # CHECKED
         row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
-        return sum(signals) >= 6
+        return sum(signals) >= 5
 
     def short_signal(self, row):
         signals = [
             row['macd'] < row['macdsignal'] - 0.16,  
             row['stochrsi'] > 97,  
             row['macdhist'] < -0.024,  
-            row['cci'] >  235, 
+            row['cci'] >  228, 
             row['close'] > row['vwap'] + 0.026,  
             row['mfi'] > 96.5,  
             row['williams_r'] > -2, 
@@ -95,21 +96,21 @@ class TradingBot:
              row['senkou_span_a'] < row['senkou_span_b']),  
             row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
-        return sum(signals) >= 6
+        return sum(signals) >= 5
 
     def long(self, price):
         if self.balance > 0:
             self.long_order = True
             self.short_order = False
             amount = self.balance
-            btc_bought = math.floor((amount / (price*(1 + self.fee))) * (10**self.precision)) / (10**self.precision)  
+            eth_bought = math.floor((amount / (price*(1 + self.fee))) * (10**self.precision)) / (10**self.precision)  
 
-            self.balance -= btc_bought * price * (1 + self.fee)
+            self.balance -= eth_bought * price * (1 + self.fee)
             
-            self.btc_balance += btc_bought
-            self.total_money_spent = btc_bought * price * (1 + self.fee)
+            self.eth_balance += eth_bought
+            self.total_money_spent = eth_bought * price * (1 + self.fee)
 
-            print(f"Longed at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+            print(f"Longed at {price}, balance: {self.balance}, ETH: {self.eth_balance}")
             self.long_trades += 1
 
     def short(self, price):
@@ -117,28 +118,29 @@ class TradingBot:
             self.long_order = False
             self.short_order = True
             amount = self.balance
-            btc_sold = math.floor((amount / (price*(1 + self.fee))) * (10**self.precision)) / (10**self.precision)  # Deduct the fee from the sold amount
+            eth_sold = math.floor((amount / (price*(1 + self.fee))) * (10**self.precision)) / (10**self.precision)  # Deduct the fee from the sold amount
 
-            self.balance -= btc_sold * price * (1 + self.fee)  # Add the fee to the sold amount
+            self.balance -= eth_sold * price * (1 + self.fee)  # Add the fee to the sold amount
 
-            self.btc_balance -= btc_sold
-            self.total_money_spent = btc_sold * price * (1 + self.fee)
+            self.eth_balance -= eth_sold
+            self.total_money_spent = eth_sold * price * (1 + self.fee)
 
-            print(f"Shorted at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+            print(f"Shorted at {price}, balance: {self.balance}, ETH: {self.eth_balance}")
             self.short_trades += 1
 
     def close_position(self, price):
-        if self.btc_balance > 0:
+        if self.eth_balance > 0:
             # Close long positions
-            total_sell = self.btc_balance * price * (1 - self.fee)  # Deduct the fee from the sold amount
+            total_sell = self.eth_balance * price * (1 - self.fee)  # Deduct the fee from the sold amount
             percentage_change = (total_sell - self.total_money_spent) / self.total_money_spent
             self.balance += total_sell
-            self.btc_balance = 0
+            self.eth_balance = 0
             self.highest_balance = 0
             self.long_order = False
-            print(f"Closed long position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
+            print(f"Closed long position at {price}, balance: {self.balance}, ETH: {self.eth_balance}")
+            print()
 
-            self.sum_pnl += percentage_change
+            self.sum_pnl_long += percentage_change
             if percentage_change > 0:
                 self.successful_long_trades += 1
             else:
@@ -153,16 +155,16 @@ class TradingBot:
             self.max_realized_loss = min(self.max_realized_loss, percentage_change)
 
             self.total_money_spent = 0
-        elif self.btc_balance < 0:
+        elif self.eth_balance < 0:
             # Close short positions
-            total_buy = -self.btc_balance * price  * (1 + self.fee)  # Deduct the fee from the sold amount
+            total_buy = -self.eth_balance * price  * (1 + self.fee)  # Deduct the fee from the sold amount
             percentage_change = (self.total_money_spent - total_buy) / self.total_money_spent
             self.balance += self.total_money_spent * (1 + percentage_change) 
-            self.btc_balance = 0
+            self.eth_balance = 0
             self.highest_balance = 0
             self.short_order = False
-            print(f"Closed short position at {price}, balance: {self.balance}, BTC: {self.btc_balance}")
-
+            print(f"Closed short position at {price}, balance: {self.balance}, ETH: {self.eth_balance}")
+            print()
             self.sum_pnl_short += percentage_change
             if percentage_change > 0:
                 self.successful_short_trades += 1
@@ -188,14 +190,14 @@ class TradingBot:
                     if len(self.unrealized_losses) > 10:
                         self.unrealized_losses.remove(min(self.unrealized_losses, key=abs))
 
-                    if row['close'] * self.btc_balance <= self.total_money_spent * 0.30:
+                    if row['close'] * self.eth_balance <= self.total_money_spent * 0.70:
                         self.close_position(row['close'])
                 elif self.short_order:
                     self.unrealized_losses.append(((self.total_money_spent - row['close']) / self.total_money_spent))
                     if len(self.unrealized_losses) > 10:
                         self.unrealized_losses.remove(min(self.unrealized_losses, key=abs))
 
-                    if row['close'] * (-self.btc_balance) >= self.total_money_spent * 1.30:
+                    if row['close'] * (-self.eth_balance) >= self.total_money_spent * 1.30:
                         self.close_position(row['close'])                
 
                 if self.long_signal(row):
@@ -223,17 +225,17 @@ client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVo
 
 
 # Get the latest price data
-klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "4000 days ago UTC")
+klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, "400 days ago UTC")
 
-'''''
-start_date = "20 Oct, 2021"
-end_date = "10 Apr, 2023"
+
+"""start_date = "18 Aug, 2017"
+end_date = "09 May, 2024"
 
 start_date = datetime.datetime.strptime(start_date, "%d %b, %Y")
 end_date = datetime.datetime.strptime(end_date, "%d %b, %Y")
 
 klines = client.get_historical_klines("ETHUSDT", Client.KLINE_INTERVAL_15MINUTE, start_date.strftime("%d %b, %Y %H:%M:%S"), end_date.strftime("%d %b, %Y %H:%M:%S"))
-'''
+"""
 
 df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'])
 df['close'] = pd.to_numeric(df['close'])
@@ -251,11 +253,16 @@ print("First candle date: ", df['timestamp'].iloc[0])
 print(f"Final balance: {balance}")
 print()
 print(f"Successful long trades: {bot.successful_long_trades}/ {bot.long_trades}")
-print(f"Average pnl per long trade: {bot.sum_pnl }"+"%")
+print(f"Average pnl per long trade: {100*(bot.sum_pnl_long/(bot.long_trades))}"+"%")
 print()
 print(f"Successful short trades: {bot.successful_short_trades}/ {bot.short_trades}")
-print(f"Average pnl per short trade: {bot.sum_pnl_short}"+"%")
+print(f"Average pnl per short trade: {100 * (bot.sum_pnl_short/(bot.short_trades))}"+"%")
 print()
+print("Average pnl per trade: ", 100 * ((bot.sum_pnl_long + bot.sum_pnl_short) / (bot.long_trades + bot.short_trades)),"%")
 
 print(f"Top 10 realized losses: {sorted(bot.top_losses)}")
+
+# Play sound
+for _ in range(1):
+    winsound.Beep(500, 500)  # Beep at 1000 Hz for 500 ms
 client.close_connection()
