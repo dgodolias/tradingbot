@@ -76,6 +76,7 @@ class TradingBot:
                               row['senkou_span_a'] > row['senkou_span_b']) , # CHECKED
         row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
+        print("Conditions down:",sum(signals))
         return sum(signals) >= 5
 
     def short_signal(self, row):
@@ -95,7 +96,7 @@ class TradingBot:
              row['senkou_span_a'] < row['senkou_span_b']),  
             row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
-        print(sum(signals))
+        print("Conditions down:",sum(signals))
         return sum(signals) >= 5
 
     def long(self, price):

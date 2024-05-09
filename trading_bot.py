@@ -272,7 +272,8 @@ def str_signal(row):
                         row['senkou_span_a'] < row['senkou_span_b']),  
                         row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
     ]
-
+    print('Conditions up:', sum(conditions_up))
+    print('Conditions down:', sum(conditions_down))
     # Check for 'up' and 'down' conditions
     if sum(conditions_up) >= 5:
         return 'up'
