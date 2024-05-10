@@ -2,7 +2,7 @@ import datetime
 import math
 import time
 import winsound
-from binance.client import Client
+from binance.um_futures import UMFutures
 import pandas as pd
 import talib
 
@@ -26,39 +26,60 @@ class TradingBot:
         self.top_losses = []
         self.unrealized_losses = []
 
-    def calculate_indicators(self, df):
-        df['macd'], df['macdsignal'], df['macdhist'] = talib.MACD(df['close'])
-        df['stochrsi'], df['stochrsi_signal'] = talib.STOCHRSI(df['close'])
-        df['atr'] = talib.ATR(df['high'], df['low'], df['close'])
-        df['ema'] = talib.EMA(df['close'])
-        df['cci'] = talib.CCI(df['high'], df['low'], df['close'])
-        df['vwap'] = (df['volume'] * (df['high'] + df['low'] + df['close']) / 3).cumsum() / df['volume'].cumsum()
-        df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'])
-        df['williams_r'] = talib.WILLR(df['high'], df['low'], df['close'])
-        df['adx'] = talib.ADX(df['high'], df['low'], df['close'])  # New
-        df['psar'] = talib.SAR(df['high'], df['low'])  # New
-
+    def calculate_indicators(self, df, i):
+        df_copy = df.iloc[max(0, i-100):i+1][::-1].reset_index(drop=True)
+        macd, macdsignal, macdhist = talib.MACD(df_copy['close'])
+        stochrsi, stochrsi_signal = talib.STOCHRSI(df_copy['close'])
+        atr = talib.ATR(df_copy['high'], df_copy['low'], df_copy['close'])
+        ema = talib.EMA(df_copy['close'])
+        cci = talib.CCI(df_copy['high'], df_copy['low'], df_copy['close'])
+        vwap = (df_copy['volume'] * (df_copy['high'] + df_copy['low'] + df_copy['close']) / 3).cumsum() / df_copy['volume'].cumsum()
+        mfi = talib.MFI(df_copy['high'], df_copy['low'], df_copy['close'], df_copy['volume'])
+        williams_r = talib.WILLR(df_copy['high'], df_copy['low'], df_copy['close'])
+        adx = talib.ADX(df_copy['high'], df_copy['low'], df_copy['close'])  # New
+        psar = talib.SAR(df_copy['high'], df_copy['low'])  # New
+    
         # Ichimoku Clouds
-        high_9 = df['high'].rolling(window=9).max()
-        low_9 = df['low'].rolling(window=9).min()
-        df['tenkan_sen'] = (high_9 + low_9) / 2
-
-        high_26 = df['high'].rolling(window=26).max()
-        low_26 = df['low'].rolling(window=26).min()
-        df['kijun_sen'] = (high_26 + low_26) / 2
-
-        df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
-        df['senkou_span_b'] = ((df['high'].rolling(window=52).max() + df['low'].rolling(window=52).min()) / 2).shift(26)
-
-        df['chikou_span'] = df['close'].shift(-26)
-
+        high_9 = df_copy['high'].rolling(window=9).max()
+        low_9 = df_copy['low'].rolling(window=9).min()
+        tenkan_sen = (high_9 + low_9) / 2
+    
+        high_26 = df_copy['high'].rolling(window=26).max()
+        low_26 = df_copy['low'].rolling(window=26).min()
+        kijun_sen = (high_26 + low_26) / 2
+    
+        senkou_span_a = ((tenkan_sen + kijun_sen) / 2).shift(26)
+        senkou_span_b = ((df_copy['high'].rolling(window=52).max() + df_copy['low'].rolling(window=52).min()) / 2).shift(26)
+    
+        chikou_span = df_copy['close'].shift(-26)
+    
         # Volume Profile
-        df['volume_profile'] = df['volume'] * (df['high'] + df['low'] + df['close']) / 3
-        df['volume_profile_shifted'] = df['volume_profile'].shift(1)
-
+        volume_profile = df_copy['volume'] * (df_copy['high'] + df_copy['low'] + df_copy['close']) / 3
+        volume_profile_shifted = volume_profile.shift(1)
+    
+        # Assign the calculated indicators to the corresponding row in df
+        df.loc[i, 'macd'] = macd.iloc[-1]
+        df.loc[i, 'macdsignal'] = macdsignal.iloc[-1]
+        df.loc[i, 'macdhist'] = macdhist.iloc[-1]
+        df.loc[i, 'stochrsi'] = stochrsi.iloc[-1]
+        df.loc[i, 'stochrsi_signal'] = stochrsi_signal.iloc[-1]
+        df.loc[i, 'atr'] = atr.iloc[-1]
+        df.loc[i, 'ema'] = ema.iloc[-1]
+        df.loc[i, 'cci'] = cci.iloc[-1]
+        df.loc[i, 'vwap'] = vwap.iloc[-1]
+        df.loc[i, 'mfi'] = mfi.iloc[-1]
+        df.loc[i, 'williams_r'] = williams_r.iloc[-1]
+        df.loc[i, 'adx'] = adx.iloc[-1]
+        df.loc[i, 'psar'] = psar.iloc[-1]
+        df.loc[i, 'tenkan_sen'] = tenkan_sen.iloc[-1]
+        df.loc[i, 'kijun_sen'] = kijun_sen.iloc[-1]
+        df.loc[i, 'senkou_span_a'] = senkou_span_a.iloc[-1]
+        df.loc[i, 'senkou_span_b'] = senkou_span_b.iloc[-1]
+        df.loc[i, 'chikou_span'] = chikou_span.iloc[-1]
+        df.loc[i, 'volume_profile'] = volume_profile.iloc[-1]
+        df.loc[i, 'volume_profile_shifted'] = volume_profile_shifted.iloc[-1]
     
         return df
-
     def long_signal(self, row):
         signals = [
         row['macd'] > row['macdsignal'] + 0.16,  #CHECKED
@@ -76,7 +97,19 @@ class TradingBot:
                               row['senkou_span_a'] > row['senkou_span_b']) , # CHECKED
         row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
-        print("Conditions down:",sum(signals))
+        print("----------------------------------------------------")
+        print("Conditions up:",sum(signals))
+        print(row['macd'])
+        print(row['macdsignal'])
+        print(row['macdhist'])
+        print(row['stochrsi'])
+        print(row['cci'])
+        print(row['vwap'])
+        print(row['mfi'])
+        print(row['williams_r'])
+        print(row['adx'])
+        print(row['psar'])
+        print("----------------------------------------------------")
         return sum(signals) >= 5
 
     def short_signal(self, row):
@@ -96,7 +129,19 @@ class TradingBot:
              row['senkou_span_a'] < row['senkou_span_b']),  
             row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
+        print("----------------------------------------------------")
         print("Conditions down:",sum(signals))
+        print(row['macd'])
+        print(row['macdsignal'])
+        print(row['macdhist'])
+        print(row['stochrsi'])
+        print(row['cci'])
+        print(row['vwap'])
+        print(row['mfi'])
+        print(row['williams_r'])
+        print(row['adx'])
+        print(row['psar'])
+        print("----------------------------------------------------")
         return sum(signals) >= 5
 
     def long(self, price):
@@ -183,8 +228,10 @@ class TradingBot:
             self.total_money_spent = 0
     
     def backtest(self, df):
-            df = self.calculate_indicators(df)
-            for _, row in df.iterrows():
+            
+            for i in df.index:
+                df_i = self.calculate_indicators(df,i)
+                row = df_i.iloc[i]
                 #finding the 10 biggest unrealised losses
                 if self.long_order:
                     self.unrealized_losses.append(((row['close']  - self.total_money_spent) / self.total_money_spent))
@@ -217,16 +264,13 @@ class TradingBot:
 
     
 # Create a temporary client to get server time
-temp_client = Client()
-server_time = temp_client.get_server_time()
-offset = server_time['serverTime'] - int(time.time() * 1000)
 
 # Create a client with the correct offset
-client = Client('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox', '0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p')
+client = UMFutures('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox', '0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p')
 
 
 # Get the latest price data
-klines = client.get_historical_klines("ETHUSDC", Client.KLINE_INTERVAL_15MINUTE, "1 days ago UTC")
+klines = client.klines("ETHUSDC", "1m",limit=500)
 print(klines)
 
 """start_date = "18 Aug, 2017"
@@ -248,7 +292,7 @@ df['low'] = pd.to_numeric(df['low'], errors='coerce')
 bot = TradingBot()
 
 # Run the trading bot
-df = df.iloc[::-1]
+
 balance = bot.backtest(df)
 print("----------------------------------------------------")
 print("First candle date: ", df['timestamp'].iloc[0])
@@ -267,4 +311,4 @@ print(f"Top 10 realized losses: {sorted(bot.top_losses)}")
 # Play sound
 for _ in range(2):
     winsound.Beep(1000, 500)  # Beep at 1000 Hz for 500 ms
-client.close_connection()
+
