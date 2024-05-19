@@ -3,6 +3,7 @@ import math
 import time
 import winsound
 from binance.um_futures import UMFutures
+from binance.client import Client
 import pandas as pd
 import talib
 
@@ -27,7 +28,8 @@ class TradingBot:
         self.unrealized_losses = []
 
     def calculate_indicators(self, df, i):
-        df_copy = df.iloc[max(0, i-100):i+1][::-1].reset_index(drop=True)
+        df_copy = df.iloc[max(0, i-100):i+1]
+        #print(df_copy[['close','timestamp']])
         macd, macdsignal, macdhist = talib.MACD(df_copy['close'])
         stochrsi, stochrsi_signal = talib.STOCHRSI(df_copy['close'])
         atr = talib.ATR(df_copy['high'], df_copy['low'], df_copy['close'])
@@ -97,8 +99,10 @@ class TradingBot:
                               row['senkou_span_a'] > row['senkou_span_b']) , # CHECKED
         row['volume_profile'] > row['volume_profile_shifted'] * 1.35  # CHECKED
         ]
+        #print("Conditions up:",sum(signals))
+
+        """
         print("----------------------------------------------------")
-        print("Conditions up:",sum(signals))
         print(row['macd'])
         print(row['macdsignal'])
         print(row['macdhist'])
@@ -110,7 +114,8 @@ class TradingBot:
         print(row['adx'])
         print(row['psar'])
         print("----------------------------------------------------")
-        return sum(signals) >= 5
+        """
+        return sum(signals) >= 6
 
     def short_signal(self, row):
         signals = [
@@ -129,8 +134,10 @@ class TradingBot:
              row['senkou_span_a'] < row['senkou_span_b']),  
             row['volume_profile'] < row['volume_profile_shifted'] * 0.65  
         ]
+        #print("Conditions down:",sum(signals))
+        """
         print("----------------------------------------------------")
-        print("Conditions down:",sum(signals))
+        
         print(row['macd'])
         print(row['macdsignal'])
         print(row['macdhist'])
@@ -142,7 +149,8 @@ class TradingBot:
         print(row['adx'])
         print(row['psar'])
         print("----------------------------------------------------")
-        return sum(signals) >= 5
+        """
+        return sum(signals) >= 6
 
     def long(self, price):
         if self.balance > 0:
@@ -230,8 +238,8 @@ class TradingBot:
     def backtest(self, df):
             
             for i in df.index:
-                df_i = self.calculate_indicators(df,i)
-                row = df_i.iloc[i]
+                df = self.calculate_indicators(df,i)
+                row = df.iloc[i]
                 #finding the 10 biggest unrealised losses
                 if self.long_order:
                     self.unrealized_losses.append(((row['close']  - self.total_money_spent) / self.total_money_spent))
@@ -266,13 +274,11 @@ class TradingBot:
 # Create a temporary client to get server time
 
 # Create a client with the correct offset
-client = UMFutures('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox', '0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p')
-
-
+#client = UMFutures('pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox', '0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p')
+client = Client("pBXctBYN1vkZBUIOkhBhob5tfK0md1oC3KAo10rJBKMlJgZMwMaQJMaNWLQRsVox", "0kCWDrAB10jKjTPKSWuUaJDmCD23mQApy43cZS8jIHCgNajGpI0k8y43ZYR7p43p")
 # Get the latest price data
-klines = client.klines("ETHUSDC", "1m",limit=500)
-print(klines)
-
+#klines = client.klines("ETHUSDC", "1m",limit=100)
+klines = client.get_historical_klines("ETHUSDC", Client.KLINE_INTERVAL_15MINUTE, "1000 days ago UTC")
 """start_date = "18 Aug, 2017"
 end_date = "09 May, 2024"
 
